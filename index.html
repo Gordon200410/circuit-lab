@@ -1,0 +1,2841 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>網頁版電子電路實驗室模擬器 | Electronic Circuit Lab</title>
+<style>
+  :root {
+    --bg-app: #0d1117;
+    --bg-panel: #161b22;
+    --bg-panel-alt: #1c222b;
+    --bg-input: #0d1117;
+    --border-color: #30363d;
+    --border-hover: #58a6ff;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --accent: #38bdf8;
+    --accent-hover: #7dd3fc;
+    --success: #2ea043;
+    --warning: #d29922;
+    --danger: #f85149;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", Consolas, Monaco, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    user-select: none;
+  }
+
+  body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+  }
+
+  /* 自訂捲軸 */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-panel); }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  /* 整體佈局 */
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* 頂部工具列 */
+  .toolbar {
+    height: 48px;
+    background-color: var(--bg-panel);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    gap: 12px;
+    z-index: 20;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .brand-badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 22px;
+    background-color: var(--border-color);
+    margin: 0 4px;
+  }
+
+  button, select {
+    background-color: var(--bg-panel-alt);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  button:hover:not(:disabled), select:hover {
+    border-color: var(--border-hover);
+    background-color: #242c37;
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  button.primary {
+    background-color: rgba(46, 160, 67, 0.2);
+    border-color: rgba(46, 160, 67, 0.6);
+    color: #56d364;
+  }
+  button.primary:hover:not(:disabled) {
+    background-color: rgba(46, 160, 67, 0.35);
+  }
+
+  button.paused {
+    background-color: rgba(210, 153, 34, 0.2);
+    border-color: rgba(210, 153, 34, 0.6);
+    color: #e3b341;
+  }
+
+  button.danger {
+    color: #ff7b72;
+  }
+  button.danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    background-color: rgba(248, 81, 73, 0.15);
+  }
+
+  .sim-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 0 8px;
+    font-family: var(--font-mono);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--success);
+    box-shadow: 0 0 8px var(--success);
+  }
+  .status-dot.paused {
+    background-color: var(--warning);
+    box-shadow: 0 0 6px var(--warning);
+  }
+  .status-dot.error {
+    background-color: var(--danger);
+    box-shadow: 0 0 8px var(--danger);
+    animation: pulse-red 1s infinite;
+  }
+
+  @keyframes pulse-red {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* 主工作區 */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 左側元件庫 */
+  .palette-panel {
+    width: 220px;
+    background-color: var(--bg-panel);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  .panel-header {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-panel);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .palette-list {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .palette-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background-color: var(--bg-panel-alt);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: grab;
+    transition: all 0.15s ease;
+  }
+
+  .palette-item:hover {
+    border-color: var(--accent);
+    background-color: #212832;
+    transform: translateY(-1px);
+  }
+
+  .palette-item:active {
+    cursor: grabbing;
+  }
+
+  .palette-icon {
+    width: 36px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .palette-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .palette-title {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .palette-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .palette-tip {
+    margin: 10px;
+    padding: 10px;
+    background: rgba(56, 189, 248, 0.06);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* 中間區域（畫布 + 示波器） */
+  .center-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    background-color: var(--bg-app);
+  }
+
+  .canvas-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #circuit-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  /* 浮動警告訊息 */
+  .alert-stack {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 15;
+    pointer-events: none;
+    max-width: 80%;
+  }
+
+  .alert-banner {
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+  }
+
+  .alert-error {
+    background-color: rgba(60, 20, 22, 0.95);
+    border: 1px solid var(--danger);
+    color: #ffa198;
+  }
+
+  .alert-warning {
+    background-color: rgba(56, 42, 16, 0.92);
+    border: 1px solid var(--warning);
+    color: #f0c674;
+  }
+
+  .canvas-hud {
+    position: absolute;
+    bottom: 10px;
+    left: 12px;
+    background: rgba(22, 27, 34, 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+
+  .canvas-zoom-badge {
+    position: absolute;
+    bottom: 10px;
+    right: 12px;
+    background: rgba(22, 27, 34, 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+  }
+
+  /* 下方即時示波器面板 */
+  .scope-panel {
+    height: 175px;
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+
+  .scope-header {
+    height: 32px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-panel-alt);
+    font-size: 12px;
+  }
+
+  .scope-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .scope-target {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+  }
+
+  .scope-stats {
+    display: flex;
+    gap: 14px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  .scope-stats span b {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .scope-body {
+    flex: 1;
+    position: relative;
+    background-color: #090d12;
+  }
+
+  #scope-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 右側屬性與儀表板 */
+  .inspector-panel {
+    width: 270px;
+    background-color: var(--bg-panel);
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  .inspector-section {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .inspector-empty {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+    text-align: center;
+    padding: 16px 8px;
+  }
+
+  .prop-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+
+  .prop-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .prop-label {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .prop-input-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  input[type="number"], input[type="text"] {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    width: 100%;
+    user-select: text;
+  }
+
+  input[type="number"]:focus, input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .readout-card {
+    background-color: var(--bg-panel-alt);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .readout-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .readout-label {
+    font-size: 10.5px;
+    color: var(--text-secondary);
+  }
+
+  .readout-value {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .meter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .meter-item {
+    background-color: var(--bg-panel-alt);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 7px 9px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .meter-item:hover {
+    border-color: var(--border-hover);
+  }
+
+  .meter-name {
+    color: var(--text-secondary);
+  }
+
+  .meter-val {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .btn-row button {
+    flex: 1;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- 頂部工具列 -->
+  <header class="toolbar">
+    <div class="brand">
+      <span>電子電路實驗室模擬器</span>
+      <span class="brand-badge">MNA ENGINE</span>
+    </div>
+
+    <div class="toolbar-group">
+      <label for="preset-select" style="color: var(--text-secondary); font-size: 12px;">載入範例電路:</label>
+      <select id="preset-select">
+        <option value="">-- 選擇經典範例 --</option>
+        <option value="led_ohm">1. 基礎歐姆定律與 LED 限流電路</option>
+        <option value="voltage_divider">2. 分壓器電路</option>
+        <option value="rc_transient">3. RC 充放電暫態電路</option>
+      </select>
+    </div>
+
+    <div class="toolbar-group">
+      <button id="btn-run-pause" class="primary">暫停模擬</button>
+      <button id="btn-reset-sim" title="重設電容電量、模擬時間與燒毀狀態">重設暫態/修復</button>
+      <div class="toolbar-divider"></div>
+      <button id="btn-undo" title="復原 (Ctrl+Z)">復原</button>
+      <button id="btn-redo" title="重做 (Ctrl+Y)">重做</button>
+      <button id="btn-rotate" title="旋轉選取元件 (R)">旋轉</button>
+      <button id="btn-delete" class="danger" title="刪除選取項目 (Delete)">刪除</button>
+      <button id="btn-clear" class="danger">清空畫布</button>
+      <div class="toolbar-divider"></div>
+      <button id="btn-zoom-reset" title="重設視圖縮放與位置">重設視圖</button>
+    </div>
+
+    <div class="sim-status">
+      <div id="status-dot" class="status-dot"></div>
+      <span id="status-text">模擬執行中</span>
+    </div>
+  </header>
+
+  <!-- 主工作區 -->
+  <div class="workspace">
+    <!-- 左側元件庫 -->
+    <aside class="palette-panel">
+      <div class="panel-header">電子元件庫</div>
+      <div class="palette-list" id="palette-list">
+        <!-- 由 JS 動態生成元件項目 -->
+      </div>
+      <div class="palette-tip">
+        <strong>操作提示：</strong><br>
+        1. 拖曳元件至畫布，或點擊後於畫布放置。<br>
+        2. 點擊元件腳位可開始「拉線」，點擊空白處可設定轉折點，點擊目標腳位或導線完成連接。<br>
+        3. 按住滑鼠中鍵或「空白鍵 + 左鍵」拖曳平移畫布，滾輪縮放。<br>
+        4. 點擊任一導線、腳位或元件，下方示波器即會追蹤該節點電壓。
+      </div>
+    </aside>
+
+    <!-- 中間畫布與示波器 -->
+    <main class="center-area">
+      <div class="canvas-container" id="canvas-container">
+        <canvas id="circuit-canvas"></canvas>
+        <div class="alert-stack" id="alert-stack"></div>
+        <div class="canvas-hud" id="canvas-hud">
+          就緒 | 拖曳元件或點擊腳位拉線 | R: 旋轉 | Del: 刪除 | Ctrl+Z: 復原
+        </div>
+        <div class="canvas-zoom-badge" id="zoom-badge">100%</div>
+      </div>
+
+      <!-- 下方即時動態示波器 -->
+      <section class="scope-panel">
+        <div class="scope-header">
+          <div class="scope-title-group">
+            <span style="font-weight: 600;">即時動態示波器 (Oscilloscope)</span>
+            <span class="scope-target" id="scope-target-label">探棒未連接 (請點擊畫布上的節點、導線或元件)</span>
+          </div>
+          <div class="scope-stats">
+            <span>即時: <b id="scope-val-now">--</b></span>
+            <span>最大: <b id="scope-val-max">--</b></span>
+            <span>最小: <b id="scope-val-min">--</b></span>
+            <button id="btn-scope-clear" style="padding: 2px 8px; font-size: 11px;">清除波形</button>
+          </div>
+        </div>
+        <div class="scope-body">
+          <canvas id="scope-canvas"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <!-- 右側屬性與儀表板 -->
+    <aside class="inspector-panel">
+      <div class="panel-header">元件屬性設定</div>
+      <div class="inspector-section" id="inspector-content">
+        <div class="inspector-empty">
+          尚未選取任何元件或導線。<br>點擊畫布上的元件可修改參數與查看即時電氣數值。
+        </div>
+      </div>
+
+      <div class="panel-header">即時電路儀表板</div>
+      <div class="inspector-section">
+        <div class="readout-card" style="margin-top: 0; margin-bottom: 12px;">
+          <div class="readout-item">
+            <span class="readout-label">模擬時間</span>
+            <span class="readout-value" id="dash-time">0.00 s</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">電氣節點數</span>
+            <span class="readout-value" id="dash-nodes">0</span>
+          </div>
+        </div>
+        <div class="meter-list" id="dash-meters">
+          <div style="color: var(--text-secondary); font-size: 11.5px;">畫布上尚無量測儀表或主動元件。</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/**
+ * ============================================================================
+ * 電子電路實驗室模擬器 (Electronic Circuit Lab Simulator)
+ * 核心架構：
+ * 1. 狀態管理與 Undo/Redo 歷史紀錄
+ * 2. 網格畫布系統（縮放、平移、吸附、正交導線路由、電流粒子動畫）
+ * 3. 電氣節點合併 (Union-Find) 與導線電流分配 (DFS)
+ * 4. MNA (Modified Nodal Analysis) 線性/非線性電路求解器
+ * 5. 即時示波器繪製引擎
+ * ============================================================================
+ */
+
+(function() {
+  'use strict';
+
+  // --- 常數定義 ---
+  const GRID_SIZE = 20;
+  const PIN_HIT_RADIUS = 11;
+  const WIRE_HIT_DIST = 8;
+  const SIM_DT = 0.002; // 2ms 物理步長，兼顧 RC 暫態精準度與流暢度
+  const STEPS_PER_FRAME = 8; // 每幀執行 8 步 (16ms 對應約即時時間 1:1)
+
+  // 元件類型定義
+  const COMPONENT_DEFS = [
+    {
+      type: 'dc_source',
+      name: '直流電源供應器',
+      short: 'DC 電源',
+      desc: '0V - 24V 可調電壓',
+      pins: [{ id: 'p', label: '+', x: 40, y: 0 }, { id: 'n', label: '-', x: -40, y: 0 }],
+      defaultProps: { voltage: 9.0 }
+    },
+    {
+      type: 'ground',
+      name: '接地 (GND)',
+      short: 'GND',
+      desc: '0V 參考電位點',
+      pins: [{ id: 'g', label: 'GND', x: 0, y: -20 }],
+      defaultProps: {}
+    },
+    {
+      type: 'resistor',
+      name: '電阻 (Resistor)',
+      short: '電阻',
+      desc: '動態色碼環顯示',
+      pins: [{ id: 'a', label: '1', x: -40, y: 0 }, { id: 'b', label: '2', x: 40, y: 0 }],
+      defaultProps: { resistance: 330 }
+    },
+    {
+      type: 'capacitor',
+      name: '電容 (Capacitor)',
+      short: '電容',
+      desc: '支援充放電暫態',
+      pins: [{ id: 'a', label: '+', x: -40, y: 0 }, { id: 'b', label: '-', x: 40, y: 0 }],
+      defaultProps: { capacitance: 0.001 } // 1000 uF
+    },
+    {
+      type: 'led',
+      name: 'LED 發光二極體',
+      short: 'LED',
+      desc: '含順向壓降與過流保護',
+      pins: [{ id: 'a', label: 'A(+)', x: -40, y: 0 }, { id: 'k', label: 'K(-)', x: 40, y: 0 }],
+      defaultProps: { vf: 2.0, maxCurrent: 0.03, color: '#ff3b30', burned: false }
+    },
+    {
+      type: 'switch',
+      name: '單刀開關 (SPST)',
+      short: '開關',
+      desc: '點擊切換開路/閉合',
+      pins: [{ id: 'a', label: '1', x: -40, y: 0 }, { id: 'b', label: '2', x: 40, y: 0 }],
+      defaultProps: { closed: true }
+    },
+    {
+      type: 'voltmeter',
+      name: '直流電壓表',
+      short: '電壓表',
+      desc: '高內阻並聯量測',
+      pins: [{ id: 'p', label: '+', x: -40, y: 0 }, { id: 'n', label: '-', x: 40, y: 0 }],
+      defaultProps: {}
+    },
+    {
+      type: 'ammeter',
+      name: '直流電流表',
+      short: '電流表',
+      desc: '零內阻串聯量測',
+      pins: [{ id: 'p', label: '+', x: -40, y: 0 }, { id: 'n', label: '-', x: 40, y: 0 }],
+      defaultProps: {}
+    }
+  ];
+
+  // 應用程式主狀態
+  const state = {
+    components: [],
+    wires: [],
+    nextId: 1,
+    selectedId: null,     // 選取的元件或導線 ID
+    selectedKind: null,   // 'component' | 'wire'
+    hoveredItem: null,    // { kind, id, pinIndex }
+    running: true,
+    simTime: 0,
+    shortCircuit: false,
+    noGroundWarning: false,
+    autoGndNode: null,
+    // 視圖變換
+    view: { x: 0, y: 0, zoom: 1.0 },
+    // 拉線暫存狀態
+    wiring: null, // { startPin: { compId, pinId, x, y } | null, startWirePt: { x, y } | null, points: [], mouseWorld: { x, y } }
+    // 拖曳狀態
+    draggingComp: null, // { id, offsetX, offsetY, moved }
+    panning: null,      // { startX, startY, viewX, viewY }
+    spacePressed: false,
+    // 模擬結果快取
+    nodeVoltages: {},   // nodeId -> voltage
+    pinToNode: {},      // "compId:pinId" -> nodeId
+    wirePointToNode: {},// "x,y" -> nodeId
+    compResults: {},    // compId -> { current, voltageDrop, power, vA, vB }
+    wireCurrents: {},   // wireId -> current (從 points[0] 到 points[last] 為正)
+    // 示波器狀態
+    scope: {
+      targetNodeKey: null, // 例如 "pin:1:a" 或 "wire:5" 或 "pt:100,200"
+      targetLabel: '',
+      history: [],         // { t, v }
+      maxPoints: 300
+    },
+    // Undo / Redo
+    historyStack: [],
+    redoStack: []
+  };
+
+  // DOM 元素參照
+  const canvas = document.getElementById('circuit-canvas');
+  const ctx = canvas.getContext('2d');
+  const scopeCanvas = document.getElementById('scope-canvas');
+  const scopeCtx = scopeCanvas.getContext('2d');
+  const alertStack = document.getElementById('alert-stack');
+  const inspectorContent = document.getElementById('inspector-content');
+  const dashMeters = document.getElementById('dash-meters');
+  const dashTime = document.getElementById('dash-time');
+  const dashNodes = document.getElementById('dash-nodes');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const zoomBadge = document.getElementById('zoom-badge');
+  const btnRunPause = document.getElementById('btn-run-pause');
+  const btnUndo = document.getElementById('btn-undo');
+  const btnRedo = document.getElementById('btn-redo');
+
+  // --- 工具函式 ---
+  function snap(val) {
+    return Math.round(val / GRID_SIZE) * GRID_SIZE;
+  }
+
+  function screenToWorld(sx, sy) {
+    return {
+      x: (sx - state.view.x) / state.view.zoom,
+      y: (sy - state.view.y) / state.view.zoom
+    };
+  }
+
+  function worldToScreen(wx, wy) {
+    return {
+      x: wx * state.view.zoom + state.view.x,
+      y: wy * state.view.zoom + state.view.y
+    };
+  }
+
+  function getCompDef(type) {
+    return COMPONENT_DEFS.find(d => d.type === type);
+  }
+
+  // 取得元件腳位在世界座標的位置
+  function getPinWorldPos(comp, pinDef) {
+    const rad = (comp.rotation || 0) * Math.PI / 180;
+    const cos = Math.round(Math.cos(rad));
+    const sin = Math.round(Math.sin(rad));
+    return {
+      x: comp.x + pinDef.x * cos - pinDef.y * sin,
+      y: comp.y + pinDef.x * sin + pinDef.y * cos
+    };
+  }
+
+  function getCompPinsWorld(comp) {
+    const def = getCompDef(comp.type);
+    return def.pins.map(p => ({
+      ...p,
+      ...getPinWorldPos(comp, p),
+      compId: comp.id
+    }));
+  }
+
+  // 數值格式化
+  function formatUnit(val, unit, decimals = 2) {
+    if (val === undefined || val === null || isNaN(val)) return `-- ${unit}`;
+    const abs = Math.abs(val);
+    if (abs === 0) return `0.00 ${unit}`;
+    if (abs >= 1e6) return `${(val / 1e6).toFixed(decimals)} M${unit}`;
+    if (abs >= 1e3) return `${(val / 1e3).toFixed(decimals)} k${unit}`;
+    if (abs < 1e-3) return `${(val * 1e6).toFixed(1)} µ${unit}`;
+    if (abs < 1) return `${(val * 1e3).toFixed(decimals)} m${unit}`;
+    return `${val.toFixed(decimals)} ${unit}`;
+  }
+
+  // 電阻四環色碼計算
+  function getResistorColorBands(ohms) {
+    const colors = [
+      '#1a1a1a', // 0 黑
+      '#7b3f00', // 1 棕
+      '#d9261c', // 2 紅
+      '#ff7b00', // 3 橙
+      '#ffd000', // 4 黃
+      '#2ea043', // 5 綠
+      '#2563eb', // 6 藍
+      '#9333ea', // 7 紫
+      '#6b7280', // 8 灰
+      '#f3f4f6'  // 9 白
+    ];
+    if (ohms < 1) return [colors[0], colors[0], colors[0], '#d4af37'];
+    const exp = Math.floor(Math.log10(ohms));
+    const mantissa = Math.round(ohms / Math.pow(10, exp - 1));
+    let d1 = Math.floor(mantissa / 10);
+    let d2 = mantissa % 10;
+    let mult = exp - 1;
+    if (d1 > 9) { d1 = 1; d2 = 0; mult += 1; }
+    const multColor = mult >= 0 && mult <= 9 ? colors[mult] : (mult === -1 ? '#d4af37' : '#c0c0c0');
+    return [colors[d1] || colors[0], colors[d2] || colors[0], multColor, '#d4af37'];
+  }
+
+  // --- Undo / Redo 歷史管理 ---
+  function cloneCircuitSnapshot() {
+    return JSON.stringify({
+      components: state.components,
+      wires: state.wires,
+      nextId: state.nextId
+    });
+  }
+
+  function pushHistory() {
+    state.historyStack.push(cloneCircuitSnapshot());
+    if (state.historyStack.length > 50) state.historyStack.shift();
+    state.redoStack = [];
+    updateHistoryButtons();
+  }
+
+  function restoreSnapshot(jsonStr) {
+    const data = JSON.parse(jsonStr);
+    state.components = data.components;
+    state.wires = data.wires;
+    state.nextId = data.nextId;
+    state.selectedId = null;
+    state.selectedKind = null;
+    state.shortCircuit = false;
+    state.wiring = null;
+    resetTransientState();
+    renderInspector();
+    solveAndSync();
+  }
+
+  function undo() {
+    if (state.historyStack.length === 0) return;
+    state.redoStack.push(cloneCircuitSnapshot());
+    const prev = state.historyStack.pop();
+    restoreSnapshot(prev);
+    updateHistoryButtons();
+  }
+
+  function redo() {
+    if (state.redoStack.length === 0) return;
+    state.historyStack.push(cloneCircuitSnapshot());
+    const next = state.redoStack.pop();
+    restoreSnapshot(next);
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    btnUndo.disabled = state.historyStack.length === 0;
+    btnRedo.disabled = state.redoStack.length === 0;
+  }
+
+  // --- 電路操作 ---
+  function createComponent(type, x, y, customProps = {}, rotation = 0) {
+    const def = getCompDef(type);
+    const id = state.nextId++;
+    const comp = {
+      id,
+      type,
+      name: `${def.short}_${id}`,
+      x: snap(x),
+      y: snap(y),
+      rotation,
+      props: { ...def.defaultProps, ...customProps },
+      // 暫態內部狀態（例如電容上一刻電壓）
+      state: { vPrev: 0 }
+    };
+    state.components.push(comp);
+    return comp;
+  }
+
+  function deleteSelected() {
+    if (!state.selectedId) return;
+    pushHistory();
+    if (state.selectedKind === 'component') {
+      state.components = state.components.filter(c => c.id !== state.selectedId);
+    } else if (state.selectedKind === 'wire') {
+      state.wires = state.wires.filter(w => w.id !== state.selectedId);
+    }
+    state.selectedId = null;
+    state.selectedKind = null;
+    state.shortCircuit = false;
+    renderInspector();
+    solveAndSync();
+  }
+
+  function rotateSelected() {
+    if (state.selectedKind !== 'component' || !state.selectedId) return;
+    const comp = state.components.find(c => c.id === state.selectedId);
+    if (!comp) return;
+    pushHistory();
+    comp.rotation = (comp.rotation + 90) % 360;
+    solveAndSync();
+  }
+
+  function resetTransientState() {
+    state.simTime = 0;
+    state.shortCircuit = false;
+    state.scope.history = [];
+    for (const c of state.components) {
+      if (c.type === 'capacitor') {
+        c.state = { vPrev: 0 };
+      }
+      if (c.type === 'led') {
+        c.props.burned = false;
+      }
+    }
+    if (!state.running) {
+      state.running = true;
+      updateRunButton();
+    }
+    solveAndSync();
+  }
+
+  // --- 正交轉折路徑計算 (Manhattan Routing) ---
+  function computeOrthogonalPath(p1, p2) {
+    if (p1.x === p2.x || p1.y === p2.y) {
+      return [{ x: p1.x, y: p1.y }, { x: p2.x, y: p2.y }];
+    }
+    // 優先水平再垂直
+    const midX = p2.x;
+    const midY = p1.y;
+    return [
+      { x: p1.x, y: p1.y },
+      { x: midX, y: midY },
+      { x: p2.x, y: p2.y }
+    ];
+  }
+
+  function simplifyWirePoints(pts) {
+    if (pts.length <= 2) return pts;
+    const res = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const a = res[res.length - 1];
+      const b = pts[i];
+      const c = pts[i + 1];
+      if ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y)) {
+        continue; // 共線點省略
+      }
+      if (a.x === b.x && a.y === b.y) continue;
+      res.push(b);
+    }
+    const last = pts[pts.length - 1];
+    if (res[res.length - 1].x !== last.x || res[res.length - 1].y !== last.y) {
+      res.push(last);
+    }
+    return res;
+  }
+
+  // --- Union-Find 節點合併與拓樸分析 ---
+  function buildElectricalTopology() {
+    const parent = new Map();
+    function find(k) {
+      if (!parent.has(k)) parent.set(k, k);
+      if (parent.get(k) !== k) parent.set(k, find(parent.get(k)));
+      return parent.get(k);
+    }
+    function union(a, b) {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    }
+
+    // 1. 註冊所有元件腳位座標
+    const coordMap = new Map(); // "x,y" -> [key1, key2...]
+    function registerCoord(x, y, key) {
+      const ck = `${x},${y}`;
+      if (!coordMap.has(ck)) coordMap.set(ck, []);
+      coordMap.get(ck).push(key);
+    }
+
+    for (const comp of state.components) {
+      const pins = getCompPinsWorld(comp);
+      for (const p of pins) {
+        const pk = `pin:${comp.id}:${p.id}`;
+        find(pk);
+        registerCoord(p.x, p.y, pk);
+      }
+    }
+
+    // 2. 註冊所有導線頂點與線段上的中間網格交點（支援 T 型連接）
+    for (const wire of state.wires) {
+      if (wire.points.length < 2) continue;
+      for (let i = 0; i < wire.points.length; i++) {
+        const pt = wire.points[i];
+        const wk = `wpt:${pt.x},${pt.y}`;
+        find(wk);
+        registerCoord(pt.x, pt.y, wk);
+        if (i > 0) {
+          const prev = wire.points[i - 1];
+          union(`wpt:${prev.x},${prev.y}`, wk);
+        }
+      }
+    }
+
+    // 檢查是否有腳位或導線端點落在其他導線的線段中間（T-junction）
+    for (const [ck, keys] of coordMap.entries()) {
+      const [px, py] = ck.split(',').map(Number);
+      for (const wire of state.wires) {
+        for (let i = 1; i < wire.points.length; i++) {
+          const a = wire.points[i - 1];
+          const b = wire.points[i];
+          if (pointOnSegment(px, py, a.x, a.y, b.x, b.y)) {
+            union(keys[0], `wpt:${a.x},${a.y}`);
+          }
+        }
+      }
+    }
+
+    // 同座標的所有 key 合併
+    for (const keys of coordMap.values()) {
+      for (let i = 1; i < keys.length; i++) {
+        union(keys[0], keys[i]);
+      }
+    }
+
+    // 3. 指派連續數字節點 ID（GND 為 0）
+    const rootToNode = new Map();
+    let gndRoot = null;
+    for (const comp of state.components) {
+      if (comp.type === 'ground') {
+        const pk = `pin:${comp.id}:g`;
+        gndRoot = find(pk);
+        break;
+      }
+    }
+
+    state.noGroundWarning = false;
+    state.autoGndNode = null;
+
+    if (!gndRoot && state.components.length > 0) {
+      state.noGroundWarning = true;
+      // 自動挑選電源負極或第一個元件的第一支腳位當暫時參考點
+      const vs = state.components.find(c => c.type === 'dc_source');
+      if (vs) {
+        gndRoot = find(`pin:${vs.id}:n`);
+      } else {
+        const firstComp = state.components[0];
+        const firstPin = getCompPinsWorld(firstComp)[0];
+        gndRoot = find(`pin:${firstComp.id}:${firstPin.id}`);
+      }
+      state.autoGndNode = gndRoot;
+    }
+
+    if (gndRoot) {
+      rootToNode.set(gndRoot, 0);
+      // 若有多個 GND 元件，全部合併為節點 0
+      for (const comp of state.components) {
+        if (comp.type === 'ground') {
+          rootToNode.set(find(`pin:${comp.id}:g`), 0);
+        }
+      }
+    }
+
+    let nextNodeId = 1;
+    const pinToNode = {};
+    const wirePointToNode = {};
+
+    for (const comp of state.components) {
+      const pins = getCompPinsWorld(comp);
+      for (const p of pins) {
+        const r = find(`pin:${comp.id}:${p.id}`);
+        if (!rootToNode.has(r)) {
+          rootToNode.set(r, nextNodeId++);
+        }
+        pinToNode[`${comp.id}:${p.id}`] = rootToNode.get(r);
+      }
+    }
+
+    for (const wire of state.wires) {
+      for (const pt of wire.points) {
+        const r = find(`wpt:${pt.x},${pt.y}`);
+        if (!rootToNode.has(r)) {
+          rootToNode.set(r, nextNodeId++);
+        }
+        wirePointToNode[`${pt.x},${pt.y}`] = rootToNode.get(r);
+      }
+    }
+
+    state.pinToNode = pinToNode;
+    state.wirePointToNode = wirePointToNode;
+
+    return { numNodes: nextNodeId - 1, pinToNode, wirePointToNode };
+  }
+
+  function pointOnSegment(px, py, x1, y1, x2, y2) {
+    if (x1 === x2 && px === x1) {
+      return py >= Math.min(y1, y2) && py <= Math.max(y1, y2);
+    }
+    if (y1 === y2 && py === y1) {
+      return px >= Math.min(x1, x2) && px <= Math.max(x1, x2);
+    }
+    return false;
+  }
+
+  // --- 高斯消去法求解線性系統 Ax = z (Partial Pivoting) ---
+  function solveLinearSystem(A, z) {
+    const n = z.length;
+    if (n === 0) return [];
+    // 建立擴增複製避免破壞原陣列
+    const M = A.map((row, i) => [...row, z[i]]);
+
+    for (let col = 0; col < n; col++) {
+      let maxRow = col;
+      let maxVal = Math.abs(M[col][col]);
+      for (let row = col + 1; row < n; row++) {
+        const val = Math.abs(M[row][col]);
+        if (val > maxVal) {
+          maxVal = val;
+          maxRow = row;
+        }
+      }
+      if (maxVal < 1e-12) {
+        return null; // 矩陣奇異（例如兩電壓源並聯或無參考路徑）
+      }
+      if (maxRow !== col) {
+        const tmp = M[col];
+        M[col] = M[maxRow];
+        M[maxRow] = tmp;
+      }
+      const pivot = M[col][col];
+      for (let row = col + 1; row < n; row++) {
+        const factor = M[row][col] / pivot;
+        if (factor === 0) continue;
+        for (let k = col; k <= n; k++) {
+          M[row][k] -= factor * M[col][k];
+        }
+      }
+    }
+
+    const x = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) {
+      let sum = M[i][n];
+      for (let j = i + 1; j < n; j++) {
+        sum -= M[i][j] * x[j];
+      }
+      x[i] = sum / M[i][i];
+    }
+    return x;
+  }
+
+  // --- MNA 電路求解器 ---
+  function solveCircuitStep(dt, advanceTransient) {
+    if (state.components.length === 0) {
+      state.nodeVoltages = { 0: 0 };
+      state.compResults = {};
+      state.wireCurrents = {};
+      state.shortCircuit = false;
+      return;
+    }
+
+    const { numNodes, pinToNode } = buildElectricalTopology();
+
+    // 偵測直流電源正負極是否被直接短接在同一節點
+    for (const comp of state.components) {
+      if (comp.type === 'dc_source') {
+        const np = pinToNode[`${comp.id}:p`];
+        const nn = pinToNode[`${comp.id}:n`];
+        if (np === nn && comp.props.voltage !== 0) {
+          triggerShortCircuit();
+          return;
+        }
+      }
+    }
+
+    // 收集 MNA 電壓源變數 (DC 電源與理想電流表)
+    const voltageSources = [];
+    for (const comp of state.components) {
+      if (comp.type === 'dc_source') {
+        voltageSources.push({
+          comp,
+          pNode: pinToNode[`${comp.id}:p`],
+          nNode: pinToNode[`${comp.id}:n`],
+          voltage: comp.props.voltage
+        });
+      } else if (comp.type === 'ammeter') {
+        voltageSources.push({
+          comp,
+          pNode: pinToNode[`${comp.id}:p`],
+          nNode: pinToNode[`${comp.id}:n`],
+          voltage: 0
+        });
+      }
+    }
+
+    const totalSize = numNodes + voltageSources.length;
+    if (totalSize === 0) {
+      state.nodeVoltages = { 0: 0 };
+      state.compResults = {};
+      state.wireCurrents = {};
+      return;
+    }
+
+    const leds = state.components.filter(c => c.type === 'led' && !c.props.burned);
+    // 初始化 LED 猜測壓降（沿用上次結果加快收斂）
+    const ledVd = new Map();
+    for (const led of leds) {
+      const prev = state.compResults[led.id];
+      ledVd.set(led.id, prev ? Math.min(prev.voltageDrop, led.props.vf + 0.2) : 0);
+    }
+
+    const maxIter = leds.length > 0 ? 25 : 1;
+    let solution = null;
+
+    for (let iter = 0; iter < maxIter; iter++) {
+      const A = Array.from({ length: totalSize }, () => new Array(totalSize).fill(0));
+      const z = new Array(totalSize).fill(0);
+
+      // 加上極小對地洩漏電導防止懸空節點奇異
+      for (let i = 0; i < numNodes; i++) {
+        A[i][i] += 1e-11;
+      }
+
+      const addConductance = (n1, n2, g) => {
+        if (n1 > 0) A[n1 - 1][n1 - 1] += g;
+        if (n2 > 0) A[n2 - 1][n2 - 1] += g;
+        if (n1 > 0 && n2 > 0) {
+          A[n1 - 1][n2 - 1] -= g;
+          A[n2 - 1][n1 - 1] -= g;
+        }
+      };
+
+      const addCurrentSource = (fromNode, toNode, iVal) => {
+        if (fromNode > 0) z[fromNode - 1] -= iVal;
+        if (toNode > 0) z[toNode - 1] += iVal;
+      };
+
+      // 填入被動與線性化元件
+      for (const comp of state.components) {
+        if (comp.type === 'resistor') {
+          const na = pinToNode[`${comp.id}:a`];
+          const nb = pinToNode[`${comp.id}:b`];
+          const r = Math.max(1e-3, comp.props.resistance);
+          addConductance(na, nb, 1 / r);
+        } else if (comp.type === 'switch') {
+          const na = pinToNode[`${comp.id}:a`];
+          const nb = pinToNode[`${comp.id}:b`];
+          const g = comp.props.closed ? 1000 : 1e-9; // 閉合 1mΩ，開路 1GΩ
+          addConductance(na, nb, g);
+        } else if (comp.type === 'voltmeter') {
+          const na = pinToNode[`${comp.id}:p`];
+          const nb = pinToNode[`${comp.id}:n`];
+          addConductance(na, nb, 1e-8); // 100 MΩ 內阻
+        } else if (comp.type === 'capacitor') {
+          const na = pinToNode[`${comp.id}:a`];
+          const nb = pinToNode[`${comp.id}:b`];
+          const C = Math.max(1e-9, comp.props.capacitance);
+          const geq = C / dt;
+          const vPrev = comp.state.vPrev || 0;
+          const ieq = geq * vPrev;
+          addConductance(na, nb, geq);
+          // 伴隨電流源由負極指向正極（等效於從 b 流出到 a）
+          addCurrentSource(nb, na, ieq);
+        } else if (comp.type === 'led') {
+          const na = pinToNode[`${comp.id}:a`];
+          const nk = pinToNode[`${comp.id}:k`];
+          if (comp.props.burned) {
+            addConductance(na, nk, 1e-9);
+          } else {
+            const vd = ledVd.get(comp.id);
+            const { id, gd } = evalLedModel(vd, comp.props.vf);
+            const ieq = id - gd * vd;
+            addConductance(na, nk, gd);
+            addCurrentSource(na, nk, ieq);
+          }
+        }
+      }
+
+      // 填入電壓源方程式
+      voltageSources.forEach((vs, idx) => {
+        const k = numNodes + idx;
+        if (vs.pNode > 0) {
+          A[vs.pNode - 1][k] += 1;
+          A[k][vs.pNode - 1] += 1;
+        }
+        if (vs.nNode > 0) {
+          A[vs.nNode - 1][k] -= 1;
+          A[k][vs.nNode - 1] -= 1;
+        }
+        z[k] = vs.voltage;
+      });
+
+      solution = solveLinearSystem(A, z);
+      if (!solution) {
+        triggerShortCircuit();
+        return;
+      }
+
+      // 檢查 LED Newton-Raphson 收斂
+      if (leds.length === 0) break;
+      let maxDiff = 0;
+      for (const led of leds) {
+        const na = pinToNode[`${led.id}:a`];
+        const nk = pinToNode[`${led.id}:k`];
+        const va = na === 0 ? 0 : solution[na - 1];
+        const vk = nk === 0 ? 0 : solution[nk - 1];
+        const newVd = va - vk;
+        const oldVd = ledVd.get(led.id);
+        const diff = newVd - oldVd;
+        maxDiff = Math.max(maxDiff, Math.abs(diff));
+        // 阻尼限制步長避免指數震盪
+        const clampedDiff = Math.max(-0.25, Math.min(0.25, diff));
+        ledVd.set(led.id, oldVd + clampedDiff);
+      }
+      if (maxDiff < 1e-5) break;
+    }
+
+    // 整理節點電壓
+    const nodeVoltages = { 0: 0 };
+    for (let i = 1; i <= numNodes; i++) {
+      nodeVoltages[i] = solution[i - 1];
+    }
+    state.nodeVoltages = nodeVoltages;
+
+    // 檢查電源是否發生過流短路 (> 50A)
+    for (let idx = 0; idx < voltageSources.length; idx++) {
+      const vs = voltageSources[idx];
+      const iVal = solution[numNodes + idx];
+      if (vs.comp.type === 'dc_source' && Math.abs(iVal) > 50) {
+        triggerShortCircuit();
+        return;
+      }
+    }
+    state.shortCircuit = false;
+
+    // 計算每個元件的電流、壓降與功率
+    const compResults = {};
+    const vsIndexMap = new Map();
+    voltageSources.forEach((vs, idx) => vsIndexMap.set(vs.comp.id, idx));
+
+    for (const comp of state.components) {
+      if (comp.type === 'ground') {
+        compResults[comp.id] = { current: 0, voltageDrop: 0, power: 0, vA: 0, vB: 0 };
+        continue;
+      }
+      const pins = getCompPinsWorld(comp);
+      const nA = pinToNode[`${comp.id}:${pins[0].id}`];
+      const nB = pinToNode[`${comp.id}:${pins[1].id}`];
+      const vA = nodeVoltages[nA] || 0;
+      const vB = nodeVoltages[nB] || 0;
+      const vDrop = vA - vB;
+      let current = 0; // 定義為從 pins[0] 流向 pins[1]
+
+      if (comp.type === 'dc_source') {
+        const idx = vsIndexMap.get(comp.id);
+        // MNA 中 I_k 是從 + 流進電源到 -，所以對外輸出電流為 -I_k
+        current = -solution[numNodes + idx];
+      } else if (comp.type === 'ammeter') {
+        const idx = vsIndexMap.get(comp.id);
+        current = solution[numNodes + idx];
+      } else if (comp.type === 'resistor') {
+        current = vDrop / Math.max(1e-3, comp.props.resistance);
+      } else if (comp.type === 'switch') {
+        current = vDrop * (comp.props.closed ? 1000 : 1e-9);
+      } else if (comp.type === 'voltmeter') {
+        current = vDrop * 1e-8;
+      } else if (comp.type === 'capacitor') {
+        const C = Math.max(1e-9, comp.props.capacitance);
+        const geq = C / dt;
+        current = geq * (vDrop - (comp.state.vPrev || 0));
+        if (advanceTransient) {
+          comp.state.vPrev = vDrop;
+        }
+      } else if (comp.type === 'led') {
+        if (comp.props.burned) {
+          current = vDrop * 1e-9;
+        } else {
+          const { id } = evalLedModel(vDrop, comp.props.vf);
+          current = id;
+          // 過流燒毀檢測
+          if (advanceTransient && current > comp.props.maxCurrent * 1.05) {
+            comp.props.burned = true;
+          }
+        }
+      }
+
+      compResults[comp.id] = {
+        current,
+        voltageDrop: vDrop,
+        power: Math.abs(vDrop * current),
+        vA,
+        vB
+      };
+    }
+
+    state.compResults = compResults;
+    computeWireCurrents(pinToNode, compResults);
+  }
+
+  // 平滑 LED 模型（肖克萊方程式 + 5Ω 內阻線性延拓，確保數值穩定）
+  function evalLedModel(vd, vf) {
+    const Is = 1e-12;
+    const VtPrime = vf / 23.719; // 使 Vd = Vf 時約為 20mA
+    const vLin = vf + 0.12;
+    const gLeak = 1e-9;
+    if (vd <= vLin) {
+      const expTerm = Math.exp(Math.max(-40, vd / VtPrime));
+      const id = Is * (expTerm - 1) + gLeak * vd;
+      const gd = Math.min(0.2, (Is / VtPrime) * expTerm + gLeak);
+      return { id, gd };
+    } else {
+      const expLin = Math.exp(vLin / VtPrime);
+      const idLin = Is * (expLin - 1) + gLeak * vLin;
+      const gdLin = Math.min(0.2, (Is / VtPrime) * expLin + gLeak);
+      return {
+        id: idLin + gdLin * (vd - vLin),
+        gd: gdLin
+      };
+    }
+  }
+
+  function triggerShortCircuit() {
+    state.shortCircuit = true;
+    state.running = false;
+    updateRunButton();
+  }
+
+  // 使用節點內部圖與 KCL 推算每段導線的電流（用於電流流動動畫）
+  function computeWireCurrents(pinToNode, compResults) {
+    state.wireCurrents = {};
+    // 對每條導線建立頂點鄰接表
+    const ptInject = new Map(); // "x,y" -> 流入該座標的元件電流總和
+    const addInject = (x, y, val) => {
+      const k = `${x},${y}`;
+      ptInject.set(k, (ptInject.get(k) || 0) + val);
+    };
+
+    for (const comp of state.components) {
+      const res = compResults[comp.id];
+      if (!res) continue;
+      const pins = getCompPinsWorld(comp);
+      if (pins.length === 2) {
+        // 電流從 pin[0] 流向 pin[1]：pin[0] 從外部吸取電流 (對導線為負)，pin[1] 注入外部 (對導線為正)
+        addInject(pins[0].x, pins[0].y, -res.current);
+        addInject(pins[1].x, pins[1].y, res.current);
+      }
+    }
+
+    // 建立導線圖
+    const adj = new Map();
+    for (const wire of state.wires) {
+      if (wire.points.length < 2) continue;
+      const pStart = wire.points[0];
+      const pEnd = wire.points[wire.points.length - 1];
+      const k1 = `${pStart.x},${pStart.y}`;
+      const k2 = `${pEnd.x},${pEnd.y}`;
+      if (!adj.has(k1)) adj.set(k1, []);
+      if (!adj.has(k2)) adj.set(k2, []);
+      adj.get(k1).push({ to: k2, wireId: wire.id, dir: 1 });
+      adj.get(k2).push({ to: k1, wireId: wire.id, dir: -1 });
+    }
+
+    // DFS 遍歷生成樹以計算支路電流
+    const visited = new Set();
+    function dfs(u, parentWireId) {
+      visited.add(u);
+      let netOut = ptInject.get(u) || 0;
+      const neighbors = adj.get(u) || [];
+      for (const edge of neighbors) {
+        if (edge.wireId === parentWireId) continue;
+        if (!visited.has(edge.to)) {
+          const childFlow = dfs(edge.to, edge.wireId);
+          // childFlow 是從 edge.to 流向 u 的電流；若為正，代表電流從 edge.to 流出進入 u
+          // 若 edge.dir === 1 (wire 從 u 到 edge.to)，則 wire 正向電流 = -childFlow
+          state.wireCurrents[edge.wireId] = edge.dir === 1 ? -childFlow : childFlow;
+          netOut += childFlow;
+        }
+      }
+      return netOut;
+    }
+
+    for (const key of adj.keys()) {
+      if (!visited.has(key)) {
+        dfs(key, null);
+      }
+    }
+  }
+
+  // --- 模擬主迴圈與示波器資料收集 ---
+  function solveAndSync() {
+    solveCircuitStep(SIM_DT, false);
+    updateUIReadouts();
+  }
+
+  function updateScopeSample() {
+    if (!state.scope.targetNodeKey) return;
+    let nodeId = null;
+    const key = state.scope.targetNodeKey;
+    if (key.startsWith('pin:')) {
+      nodeId = state.pinToNode[key.slice(4)];
+    } else if (key.startsWith('wpt:')) {
+      nodeId = state.wirePointToNode[key.slice(4)];
+    } else if (key.startsWith('comp:')) {
+      const cid = Number(key.slice(5));
+      const comp = state.components.find(c => c.id === cid);
+      if (comp) {
+        const pins = getCompPinsWorld(comp);
+        nodeId = state.pinToNode[`${comp.id}:${pins[0].id}`];
+      }
+    }
+    if (nodeId === undefined || nodeId === null) return;
+    const v = state.nodeVoltages[nodeId] || 0;
+    state.scope.history.push({ t: state.simTime, v });
+    if (state.scope.history.length > state.scope.maxPoints) {
+      state.scope.history.shift();
+    }
+  }
+
+  let lastFrameTime = performance.now();
+  let animPhase = 0;
+
+  function mainLoop(now) {
+    const elapsed = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+    animPhase += elapsed;
+
+    if (state.running && !state.shortCircuit && state.components.length > 0) {
+      for (let i = 0; i < STEPS_PER_FRAME; i++) {
+        state.simTime += SIM_DT;
+        solveCircuitStep(SIM_DT, true);
+        if (state.shortCircuit) break;
+      }
+      updateScopeSample();
+      updateUIReadouts();
+    }
+
+    drawMainCanvas(elapsed);
+    drawScopeCanvas();
+    requestAnimationFrame(mainLoop);
+  }
+
+  // --- UI 更新 ---
+  function updateRunButton() {
+    if (state.running) {
+      btnRunPause.textContent = '暫停模擬';
+      btnRunPause.className = 'primary';
+    } else {
+      btnRunPause.textContent = '繼續模擬';
+      btnRunPause.className = 'paused';
+    }
+  }
+
+  function updateUIReadouts() {
+    // 狀態燈與警告橫幅
+    if (state.shortCircuit) {
+      statusDot.className = 'status-dot error';
+      statusText.textContent = '偵測到短路！已停止';
+    } else if (!state.running) {
+      statusDot.className = 'status-dot paused';
+      statusText.textContent = '模擬已暫停';
+    } else {
+      statusDot.className = 'status-dot';
+      statusText.textContent = '模擬執行中';
+    }
+
+    let alertsHtml = '';
+    if (state.shortCircuit) {
+      alertsHtml += `<div class="alert-banner alert-error">偵測到電源短路或無效迴路！為避免數值溢位，模擬已自動停止。請檢查線路後點擊「重設暫態/修復」。</div>`;
+    }
+    if (state.noGroundWarning && state.components.length > 0) {
+      alertsHtml += `<div class="alert-banner alert-warning">提示：電路中缺少接地 (GND) 元件，系統已自動指定一個暫時 0V 參考節點。建議加入 GND。</div>`;
+    }
+    const burnedLeds = state.components.filter(c => c.type === 'led' && c.props.burned);
+    if (burnedLeds.length > 0) {
+      alertsHtml += `<div class="alert-banner alert-error">警告：${burnedLeds.map(l => l.name).join(', ')} 電流過大已燒毀！請增加限流電阻後點擊「重設暫態/修復」。</div>`;
+    }
+    alertStack.innerHTML = alertsHtml;
+
+    dashTime.textContent = `${state.simTime.toFixed(2)} s`;
+    const nodeCount = Object.keys(state.nodeVoltages).length;
+    dashNodes.textContent = nodeCount;
+
+    // 更新右側儀表板列表
+    const meters = state.components.filter(c =>
+      ['voltmeter', 'ammeter', 'dc_source', 'led', 'capacitor'].includes(c.type)
+    );
+    if (meters.length === 0) {
+      dashMeters.innerHTML = '<div style="color: var(--text-secondary); font-size: 11.5px;">畫布上尚無量測儀表或主動元件。</div>';
+    } else {
+      dashMeters.innerHTML = meters.map(m => {
+        const res = state.compResults[m.id] || { current: 0, voltageDrop: 0 };
+        let valStr = '--';
+        if (m.type === 'voltmeter') valStr = formatUnit(res.voltageDrop, 'V');
+        else if (m.type === 'ammeter') valStr = formatUnit(res.current, 'A');
+        else if (m.type === 'dc_source') valStr = `${m.props.voltage.toFixed(1)}V / ${formatUnit(res.current, 'A')}`;
+        else if (m.type === 'led') valStr = m.props.burned ? '已燒毀' : formatUnit(res.current, 'A');
+        else if (m.type === 'capacitor') valStr = formatUnit(res.voltageDrop, 'V');
+
+        return `<div class="meter-item" data-cid="${m.id}">
+          <span class="meter-name">${m.name}</span>
+          <span class="meter-val" style="${m.props.burned ? 'color: var(--danger);' : ''}">${valStr}</span>
+        </div>`;
+      }).join('');
+
+      dashMeters.querySelectorAll('.meter-item').forEach(el => {
+        el.onclick = () => {
+          state.selectedId = Number(el.dataset.cid);
+          state.selectedKind = 'component';
+          renderInspector();
+        };
+      });
+    }
+
+    // 若右側有選取元件，即時更新其數值讀數
+    const liveReadout = document.getElementById('inspector-live-readout');
+    if (liveReadout && state.selectedKind === 'component') {
+      const res = state.compResults[state.selectedId];
+      if (res) {
+        liveReadout.innerHTML = `
+          <div class="readout-item">
+            <span class="readout-label">兩端壓降 (V)</span>
+            <span class="readout-value">${formatUnit(res.voltageDrop, 'V')}</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">支路電流 (I)</span>
+            <span class="readout-value">${formatUnit(res.current, 'A')}</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">消耗/輸出功率</span>
+            <span class="readout-value">${formatUnit(res.power, 'W')}</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">腳位電位</span>
+            <span class="readout-value" style="font-size: 11px;">${res.vA.toFixed(2)}V / ${res.vB.toFixed(2)}V</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function renderInspector() {
+    if (!state.selectedId) {
+      inspectorContent.innerHTML = `
+        <div class="inspector-empty">
+          尚未選取任何元件或導線。<br>點擊畫布上的元件可修改參數與查看即時電氣數值。
+        </div>`;
+      return;
+    }
+
+    if (state.selectedKind === 'wire') {
+      const wire = state.wires.find(w => w.id === state.selectedId);
+      if (!wire) return;
+      const pt = wire.points[0];
+      const nodeId = state.wirePointToNode[`${pt.x},${pt.y}`];
+      const v = state.nodeVoltages[nodeId] || 0;
+      inspectorContent.innerHTML = `
+        <div class="prop-row">
+          <div class="prop-label"><span>選取項目</span><span>導線 #${wire.id}</span></div>
+          <div class="readout-card">
+            <div class="readout-item">
+              <span class="readout-label">節點編號</span>
+              <span class="readout-value">Node ${nodeId}</span>
+            </div>
+            <div class="readout-item">
+              <span class="readout-label">節點電位</span>
+              <span class="readout-value">${formatUnit(v, 'V')}</span>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="danger" id="insp-del">刪除導線 (Del)</button>
+        </div>
+      `;
+      document.getElementById('insp-del').onclick = deleteSelected;
+      return;
+    }
+
+    const comp = state.components.find(c => c.id === state.selectedId);
+    if (!comp) return;
+    const def = getCompDef(comp.type);
+
+    let propsHtml = `
+      <div class="prop-row">
+        <div class="prop-label"><span>元件類型</span><span style="color: var(--accent);">${def.name}</span></div>
+      </div>
+      <div class="prop-row">
+        <label class="prop-label">元件標籤</label>
+        <input type="text" id="insp-name" value="${comp.name}">
+      </div>
+    `;
+
+    if (comp.type === 'dc_source') {
+      propsHtml += `
+        <div class="prop-row">
+          <div class="prop-label"><span>輸出電壓 (V)</span><span>${comp.props.voltage.toFixed(1)} V</span></div>
+          <input type="range" id="insp-v-range" min="0" max="24" step="0.5" value="${comp.props.voltage}">
+          <input type="number" id="insp-v-num" min="0" max="100" step="0.5" value="${comp.props.voltage}">
+        </div>
+      `;
+    } else if (comp.type === 'resistor') {
+      propsHtml += `
+        <div class="prop-row">
+          <div class="prop-label"><span>電阻值 (Ω)</span><span>${formatUnit(comp.props.resistance, 'Ω', 1)}</span></div>
+          <input type="number" id="insp-r-num" min="1" max="10000000" step="10" value="${comp.props.resistance}">
+        </div>
+      `;
+    } else if (comp.type === 'capacitor') {
+      const uf = comp.props.capacitance * 1e6;
+      propsHtml += `
+        <div class="prop-row">
+          <div class="prop-label"><span>電容值 (µF)</span><span>${formatUnit(comp.props.capacitance, 'F', 1)}</span></div>
+          <input type="number" id="insp-c-num" min="1" max="1000000" step="100" value="${Math.round(uf)}">
+        </div>
+      `;
+    } else if (comp.type === 'led') {
+      propsHtml += `
+        <div class="prop-row">
+          <div class="prop-label"><span>順向導通電壓 (Vf)</span><span>${comp.props.vf} V</span></div>
+          <input type="number" id="insp-vf-num" min="1.2" max="5" step="0.1" value="${comp.props.vf}">
+        </div>
+        <div class="prop-row">
+          <div class="prop-label"><span>最大安全電流 (mA)</span><span>${(comp.props.maxCurrent * 1000).toFixed(0)} mA</span></div>
+          <input type="number" id="insp-imax-num" min="5" max="500" step="5" value="${Math.round(comp.props.maxCurrent * 1000)}">
+        </div>
+        ${comp.props.burned ? `<button id="insp-repair" class="primary" style="width:100%; justify-content:center; margin-bottom:8px;">修復燒毀的 LED</button>` : ''}
+      `;
+    } else if (comp.type === 'switch') {
+      propsHtml += `
+        <div class="prop-row">
+          <button id="insp-toggle-sw" class="${comp.props.closed ? 'primary' : ''}" style="width:100%; justify-content:center;">
+            目前狀態：${comp.props.closed ? '閉合 (Closed)' : '開路 (Open)'} — 點擊切換
+          </button>
+        </div>
+      `;
+    }
+
+    propsHtml += `
+      <div class="readout-card" id="inspector-live-readout"></div>
+      <div class="btn-row">
+        <button id="insp-rot">旋轉 90° (R)</button>
+        <button class="danger" id="insp-del">刪除 (Del)</button>
+      </div>
+    `;
+
+    inspectorContent.innerHTML = propsHtml;
+
+    // 綁定事件
+    document.getElementById('insp-name').onchange = (e) => {
+      pushHistory();
+      comp.name = e.target.value || def.short;
+      updateUIReadouts();
+    };
+    document.getElementById('insp-rot').onclick = rotateSelected;
+    document.getElementById('insp-del').onclick = deleteSelected;
+
+    if (comp.type === 'dc_source') {
+      const rng = document.getElementById('insp-v-range');
+      const num = document.getElementById('insp-v-num');
+      rng.oninput = (e) => {
+        comp.props.voltage = parseFloat(e.target.value) || 0;
+        num.value = comp.props.voltage;
+        solveAndSync();
+      };
+      num.onchange = (e) => {
+        pushHistory();
+        comp.props.voltage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+        rng.value = comp.props.voltage;
+        solveAndSync();
+      };
+    } else if (comp.type === 'resistor') {
+      document.getElementById('insp-r-num').onchange = (e) => {
+        pushHistory();
+        comp.props.resistance = Math.max(1, parseFloat(e.target.value) || 1);
+        renderInspector();
+        solveAndSync();
+      };
+    } else if (comp.type === 'capacitor') {
+      document.getElementById('insp-c-num').onchange = (e) => {
+        pushHistory();
+        const uf = Math.max(0.1, parseFloat(e.target.value) || 100);
+        comp.props.capacitance = uf * 1e-6;
+        renderInspector();
+        solveAndSync();
+      };
+    } else if (comp.type === 'led') {
+      document.getElementById('insp-vf-num').onchange = (e) => {
+        pushHistory();
+        comp.props.vf = Math.max(1.0, parseFloat(e.target.value) || 2.0);
+        solveAndSync();
+      };
+      document.getElementById('insp-imax-num').onchange = (e) => {
+        pushHistory();
+        comp.props.maxCurrent = Math.max(0.005, (parseFloat(e.target.value) || 30) / 1000);
+        solveAndSync();
+      };
+      const repBtn = document.getElementById('insp-repair');
+      if (repBtn) {
+        repBtn.onclick = () => {
+          comp.props.burned = false;
+          renderInspector();
+          solveAndSync();
+        };
+      }
+    } else if (comp.type === 'switch') {
+      document.getElementById('insp-toggle-sw').onclick = () => {
+        pushHistory();
+        comp.props.closed = !comp.props.closed;
+        renderInspector();
+        solveAndSync();
+      };
+    }
+
+    updateUIReadouts();
+  }
+
+  // --- 畫布繪製引擎 ---
+  function resizeCanvases() {
+    const container = document.getElementById('canvas-container');
+    canvas.width = container.clientWidth * window.devicePixelRatio;
+    canvas.height = container.clientHeight * window.devicePixelRatio;
+    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+
+    const scopeBody = scopeCanvas.parentElement;
+    scopeCanvas.width = scopeBody.clientWidth * window.devicePixelRatio;
+    scopeCanvas.height = scopeBody.clientHeight * window.devicePixelRatio;
+    scopeCtx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+  }
+
+  function drawMainCanvas() {
+    const w = canvas.width / window.devicePixelRatio;
+    const h = canvas.height / window.devicePixelRatio;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(state.view.x, state.view.y);
+    ctx.scale(state.view.zoom, state.view.zoom);
+
+    // 1. 繪製背景網格
+    drawGrid(w, h);
+
+    // 2. 繪製導線
+    for (const wire of state.wires) {
+      drawWire(wire);
+    }
+
+    // 3. 繪製節點接點圓點（兩條以上導線交會或 T 型連接）
+    drawJunctionDots();
+
+    // 4. 繪製元件
+    for (const comp of state.components) {
+      drawComponent(comp);
+    }
+
+    // 5. 繪製正在拉線的預覽線
+    if (state.wiring) {
+      drawWiringPreview();
+    }
+
+    ctx.restore();
+  }
+
+  function drawGrid(w, h) {
+    const topLeft = screenToWorld(0, 0);
+    const botRight = screenToWorld(w, h);
+    const startX = Math.floor(topLeft.x / GRID_SIZE) * GRID_SIZE;
+    const startY = Math.floor(topLeft.y / GRID_SIZE) * GRID_SIZE;
+
+    ctx.lineWidth = 1 / state.view.zoom;
+    for (let x = startX; x <= botRight.x; x += GRID_SIZE) {
+      const isMajor = x % (GRID_SIZE * 5) === 0;
+      ctx.strokeStyle = isMajor ? '#1f2630' : '#151a22';
+      ctx.beginPath();
+      ctx.moveTo(x, topLeft.y);
+      ctx.lineTo(x, botRight.y);
+      ctx.stroke();
+    }
+    for (let y = startY; y <= botRight.y; y += GRID_SIZE) {
+      const isMajor = y % (GRID_SIZE * 5) === 0;
+      ctx.strokeStyle = isMajor ? '#1f2630' : '#151a22';
+      ctx.beginPath();
+      ctx.moveTo(topLeft.x, y);
+      ctx.lineTo(botRight.x, y);
+      ctx.stroke();
+    }
+  }
+
+  function drawWire(wire) {
+    if (wire.points.length < 2) return;
+    const isSelected = state.selectedKind === 'wire' && state.selectedId === wire.id;
+    const isHovered = state.hoveredItem && state.hoveredItem.kind === 'wire' && state.hoveredItem.id === wire.id;
+
+    // 依據節點電壓給導線微弱色彩提示
+    const pt = wire.points[0];
+    const nid = state.wirePointToNode[`${pt.x},${pt.y}`];
+    const v = state.nodeVoltages[nid] || 0;
+    let baseColor = '#4b5563';
+    if (nid === 0) baseColor = '#3b82f6'; // 接地線偏藍
+    else if (v > 0.5) baseColor = '#10b981'; // 正電位偏綠
+
+    if (isSelected) baseColor = '#38bdf8';
+    else if (isHovered) baseColor = '#93c5fd';
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = isSelected ? 4 : 3;
+
+    ctx.beginPath();
+    ctx.moveTo(wire.points[0].x, wire.points[0].y);
+    for (let i = 1; i < wire.points.length; i++) {
+      ctx.lineTo(wire.points[i].x, wire.points[i].y);
+    }
+    ctx.stroke();
+
+    // 繪製電流流動動畫粒子
+    const current = state.wireCurrents[wire.id] || 0;
+    if (state.running && !state.shortCircuit && Math.abs(current) > 1e-6) {
+      drawCurrentParticles(wire.points, current);
+    }
+    ctx.restore();
+  }
+
+  function drawCurrentParticles(points, current) {
+    // 計算總長度與各段長度
+    const segs = [];
+    let totalLen = 0;
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      const len = Math.hypot(dx, dy);
+      if (len > 0) {
+        segs.push({ x1: points[i - 1].x, y1: points[i - 1].y, dx, dy, len });
+        totalLen += len;
+      }
+    }
+    if (totalLen === 0) return;
+
+    const absI = Math.abs(current);
+    // 對數映射速度 (px/s)
+    const speed = Math.min(180, 25 + Math.log10(1 + absI * 1000) * 65);
+    const spacing = 36;
+    const dir = current >= 0 ? 1 : -1;
+    const offset = ((animPhase * speed * dir) % spacing + spacing) % spacing;
+
+    ctx.fillStyle = '#fde047';
+    ctx.shadowColor = '#facc15';
+    ctx.shadowBlur = 8;
+
+    for (let dist = offset; dist < totalLen; dist += spacing) {
+      let acc = 0;
+      for (const s of segs) {
+        if (acc + s.len >= dist) {
+          const t = (dist - acc) / s.len;
+          const px = s.x1 + s.dx * t;
+          const py = s.y1 + s.dy * t;
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        acc += s.len;
+      }
+    }
+  }
+
+  function drawJunctionDots() {
+    const countMap = new Map();
+    const inc = (x, y) => {
+      const k = `${x},${y}`;
+      countMap.set(k, (countMap.get(k) || 0) + 1);
+    };
+    for (const w of state.wires) {
+      if (w.points.length < 2) continue;
+      inc(w.points[0].x, w.points[0].y);
+      inc(w.points[w.points.length - 1].x, w.points[w.points.length - 1].y);
+    }
+    ctx.fillStyle = '#38bdf8';
+    for (const [k, cnt] of countMap.entries()) {
+      if (cnt >= 3) {
+        const [x, y] = k.split(',').map(Number);
+        ctx.beginPath();
+        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawComponent(comp) {
+    const isSelected = state.selectedKind === 'component' && state.selectedId === comp.id;
+    const isHovered = state.hoveredItem && state.hoveredItem.kind === 'component' && state.hoveredItem.id === comp.id;
+    const res = state.compResults[comp.id] || { current: 0, voltageDrop: 0 };
+
+    ctx.save();
+    ctx.translate(comp.x, comp.y);
+    ctx.rotate((comp.rotation || 0) * Math.PI / 180);
+
+    // 選取或懸停光框
+    if (isSelected || isHovered) {
+      ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(-42, -26, 84, 52);
+      ctx.setLineDash([]);
+    }
+
+    // 繪製各元件本體
+    ctx.strokeStyle = '#e6edf3';
+    ctx.fillStyle = '#161b22';
+    ctx.lineWidth = 2;
+
+    if (comp.type === 'dc_source') {
+      // 導線腳
+      ctx.beginPath();
+      ctx.moveTo(-40, 0); ctx.lineTo(-10, 0);
+      ctx.moveTo(40, 0); ctx.lineTo(10, 0);
+      ctx.stroke();
+      // 電池符號（長線正極在 +40 側，短粗線負極在 -40 側）
+      ctx.beginPath();
+      ctx.moveTo(10, -16); ctx.lineTo(10, 16);
+      ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-10, -9); ctx.lineTo(-10, 9);
+      ctx.stroke();
+      // + / - 標記
+      ctx.fillStyle = '#f85149';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('+', 16, -8);
+      ctx.fillStyle = '#58a6ff';
+      ctx.fillText('-', -24, -8);
+    } else if (comp.type === 'ground') {
+      ctx.beginPath();
+      ctx.moveTo(0, -20); ctx.lineTo(0, 0);
+      ctx.moveTo(-14, 0); ctx.lineTo(14, 0);
+      ctx.moveTo(-9, 6); ctx.lineTo(9, 6);
+      ctx.moveTo(-4, 12); ctx.lineTo(4, 12);
+      ctx.stroke();
+    } else if (comp.type === 'resistor') {
+      ctx.beginPath();
+      ctx.moveTo(-40, 0); ctx.lineTo(-22, 0);
+      ctx.moveTo(22, 0); ctx.lineTo(40, 0);
+      ctx.stroke();
+      // 電阻本體
+      ctx.fillStyle = '#d2b48c';
+      ctx.strokeStyle = '#a1887f';
+      ctx.beginPath();
+      ctx.roundRect(-22, -9, 44, 18, 4);
+      ctx.fill();
+      ctx.stroke();
+      // 四環色碼
+      const bands = getResistorColorBands(comp.props.resistance);
+      const bx = [-14, -6, 2, 12];
+      bands.forEach((col, idx) => {
+        ctx.fillStyle = col;
+        ctx.fillRect(bx[idx], -9, 4, 18);
+      });
+    } else if (comp.type === 'capacitor') {
+      ctx.beginPath();
+      ctx.moveTo(-40, 0); ctx.lineTo(-5, 0);
+      ctx.moveTo(5, 0); ctx.lineTo(40, 0);
+      ctx.moveTo(-5, -14); ctx.lineTo(-5, 14);
+      ctx.moveTo(5, -14); ctx.lineTo(5, 14);
+      ctx.stroke();
+    } else if (comp.type === 'led') {
+      ctx.beginPath();
+      ctx.moveTo(-40, 0); ctx.lineTo(-10, 0);
+      ctx.moveTo(10, 0); ctx.lineTo(40, 0);
+      ctx.stroke();
+
+      // 發光光暈
+      const brightness = (!comp.props.burned && res.current > 0.0005)
+        ? Math.min(1, res.current / 0.02)
+        : 0;
+      if (brightness > 0) {
+        const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
+        grad.addColorStop(0, `rgba(255, 70, 50, ${0.85 * brightness})`);
+        grad.addColorStop(1, 'rgba(255, 70, 50, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 二極體三角形與陰極線
+      ctx.fillStyle = comp.props.burned ? '#27272a' : (brightness > 0.05 ? '#ff5252' : '#991b1b');
+      ctx.strokeStyle = '#e6edf3';
+      ctx.beginPath();
+      ctx.moveTo(-10, -11);
+      ctx.lineTo(10, 0);
+      ctx.lineTo(-10, 11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(10, -11); ctx.lineTo(10, 11);
+      ctx.stroke();
+
+      // 燒毀叉叉特效
+      if (comp.props.burned) {
+        ctx.strokeStyle = '#f85149';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(-12, -12); ctx.lineTo(12, 12);
+        ctx.moveTo(12, -12); ctx.lineTo(-12, 12);
+        ctx.stroke();
+      }
+    } else if (comp.type === 'switch') {
+      ctx.beginPath();
+      ctx.moveTo(-40, 0); ctx.lineTo(-16, 0);
+      ctx.moveTo(16, 0); ctx.lineTo(40, 0);
+      ctx.stroke();
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(-16, 0, 3.5, 0, Math.PI * 2);
+      ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      // 撥桿
+      ctx.strokeStyle = comp.props.closed ? '#2ea043' : '#f59e0b';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-16, 0);
+      if (comp.props.closed) ctx.lineTo(16, 0);
+      else ctx.lineTo(13, -15);
+      ctx.stroke();
+    } else if (comp.type === 'voltmeter' || comp.type === 'ammeter') {
+      ctx.beginPath();
+      ctx.moveTo(-40, 0); ctx.lineTo(-18, 0);
+      ctx.moveTo(18, 0); ctx.lineTo(40, 0);
+      ctx.stroke();
+      ctx.fillStyle = '#0d1117';
+      ctx.strokeStyle = comp.type === 'voltmeter' ? '#38bdf8' : '#a855f7';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#e6edf3';
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(comp.type === 'voltmeter' ? 'V' : 'A', 0, 1);
+    }
+
+    // 繪製元件標籤與即時數值（反向旋轉文字保持水平可讀）
+    ctx.save();
+    ctx.rotate(-((comp.rotation || 0) * Math.PI / 180));
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+
+    let labelText = '';
+    if (comp.type === 'dc_source') labelText = `${comp.props.voltage}V`;
+    else if (comp.type === 'resistor') labelText = formatUnit(comp.props.resistance, 'Ω', 0);
+    else if (comp.type === 'capacitor') labelText = `${formatUnit(comp.props.capacitance, 'F', 0)} (${formatUnit(res.voltageDrop, 'V', 1)})`;
+    else if (comp.type === 'voltmeter') labelText = formatUnit(res.voltageDrop, 'V', 2);
+    else if (comp.type === 'ammeter') labelText = formatUnit(res.current, 'A', 2);
+    else if (comp.type === 'led') labelText = comp.props.burned ? 'BURNED!' : formatUnit(res.current, 'A', 1);
+    else if (comp.type === 'switch') labelText = comp.props.closed ? 'ON' : 'OFF';
+
+    if (labelText) {
+      ctx.fillStyle = comp.props.burned ? '#f85149' : '#cbd5e1';
+      ctx.fillText(labelText, 0, -22);
+    }
+    ctx.restore();
+
+    ctx.restore();
+
+    // 繪製腳位端點（世界座標）
+    const pins = getCompPinsWorld(comp);
+    for (const p of pins) {
+      const isPinHovered = state.hoveredItem && state.hoveredItem.kind === 'pin'
+        && state.hoveredItem.compId === comp.id && state.hoveredItem.pinId === p.id;
+      ctx.fillStyle = isPinHovered ? '#fde047' : '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, isPinHovered ? 5.5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawWiringPreview() {
+    const w = state.wiring;
+    const lastPt = w.points[w.points.length - 1];
+    const seg = computeOrthogonalPath(lastPt, w.mouseWorld);
+    const fullPts = [...w.points, ...seg.slice(1)];
+
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(fullPts[0].x, fullPts[0].y);
+    for (let i = 1; i < fullPts.length; i++) {
+      ctx.lineTo(fullPts[i].x, fullPts[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // --- 示波器繪製 ---
+  function drawScopeCanvas() {
+    const w = scopeCanvas.width / window.devicePixelRatio;
+    const h = scopeCanvas.height / window.devicePixelRatio;
+    scopeCtx.clearRect(0, 0, w, h);
+
+    // 格線
+    scopeCtx.strokeStyle = '#16202a';
+    scopeCtx.lineWidth = 1;
+    const cols = 10, rows = 4;
+    for (let i = 1; i < cols; i++) {
+      const x = (w / cols) * i;
+      scopeCtx.beginPath(); scopeCtx.moveTo(x, 0); scopeCtx.lineTo(x, h); scopeCtx.stroke();
+    }
+    for (let j = 1; j < rows; j++) {
+      const y = (h / rows) * j;
+      scopeCtx.beginPath(); scopeCtx.moveTo(0, y); scopeCtx.lineTo(w, y); scopeCtx.stroke();
+    }
+
+    const hist = state.scope.history;
+    if (hist.length < 2) {
+      scopeCtx.fillStyle = '#484f58';
+      scopeCtx.font = '12px sans-serif';
+      scopeCtx.textAlign = 'center';
+      scopeCtx.fillText(
+        state.scope.targetNodeKey ? '等待訊號採樣中...' : '請點擊畫布上的任一導線、腳位或元件以連接示波器探棒',
+        w / 2, h / 2
+      );
+      return;
+    }
+
+    let minV = Infinity, maxV = -Infinity;
+    for (const pt of hist) {
+      if (pt.v < minV) minV = pt.v;
+      if (pt.v > maxV) maxV = pt.v;
+    }
+    const nowV = hist[hist.length - 1].v;
+    document.getElementById('scope-val-now').textContent = `${nowV.toFixed(3)} V`;
+    document.getElementById('scope-val-max').textContent = `${maxV.toFixed(2)} V`;
+    document.getElementById('scope-val-min').textContent = `${minV.toFixed(2)} V`;
+
+    // 自動垂直縮放範圍
+    let yMin = Math.min(0, minV);
+    let yMax = Math.max(5, maxV);
+    if (yMax - yMin < 1) { yMax = yMin + 1; }
+    const pad = (yMax - yMin) * 0.15;
+    yMin -= pad;
+    yMax += pad;
+
+    const mapY = (v) => h - ((v - yMin) / (yMax - yMin)) * h;
+
+    // 0V 基準線
+    const y0 = mapY(0);
+    if (y0 >= 0 && y0 <= h) {
+      scopeCtx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      scopeCtx.setLineDash([4, 4]);
+      scopeCtx.beginPath();
+      scopeCtx.moveTo(0, y0);
+      scopeCtx.lineTo(w, y0);
+      scopeCtx.stroke();
+      scopeCtx.setLineDash([]);
+    }
+
+    // 繪製波形
+    scopeCtx.strokeStyle = '#38bdf8';
+    scopeCtx.lineWidth = 2;
+    scopeCtx.shadowColor = '#38bdf8';
+    scopeCtx.shadowBlur = 6;
+    scopeCtx.beginPath();
+    for (let i = 0; i < hist.length; i++) {
+      const x = (i / (state.scope.maxPoints - 1)) * w;
+      const y = mapY(hist[i].v);
+      if (i === 0) scopeCtx.moveTo(x, y);
+      else scopeCtx.lineTo(x, y);
+    }
+    scopeCtx.stroke();
+    scopeCtx.shadowBlur = 0;
+
+    // 刻度文字
+    scopeCtx.fillStyle = '#6e7681';
+    scopeCtx.font = '10px monospace';
+    scopeCtx.textAlign = 'left';
+    scopeCtx.fillText(`${yMax.toFixed(1)}V`, 6, 12);
+    scopeCtx.fillText(`${yMin.toFixed(1)}V`, 6, h - 6);
+  }
+
+  // --- 滑鼠與鍵盤互動 ---
+  function hitTest(wx, wy) {
+    // 1. 優先檢查腳位
+    for (const comp of state.components) {
+      const pins = getCompPinsWorld(comp);
+      for (const p of pins) {
+        if (Math.hypot(wx - p.x, wy - p.y) <= PIN_HIT_RADIUS / state.view.zoom) {
+          return { kind: 'pin', compId: comp.id, pinId: p.id, x: p.x, y: p.y };
+        }
+      }
+    }
+    // 2. 檢查元件本體
+    for (let i = state.components.length - 1; i >= 0; i--) {
+      const c = state.components[i];
+      if (Math.abs(wx - c.x) <= 36 && Math.abs(wy - c.y) <= 24) {
+        return { kind: 'component', id: c.id };
+      }
+    }
+    // 3. 檢查導線
+    for (let i = state.wires.length - 1; i >= 0; i--) {
+      const w = state.wires[i];
+      for (let j = 1; j < w.points.length; j++) {
+        const a = w.points[j - 1];
+        const b = w.points[j];
+        if (distToSegment(wx, wy, a.x, a.y, b.x, b.y) <= WIRE_HIT_DIST / state.view.zoom) {
+          return { kind: 'wire', id: w.id };
+        }
+      }
+    }
+    return null;
+  }
+
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+    if (l2 === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+  }
+
+  function setScopeTarget(key, label) {
+    if (state.scope.targetNodeKey !== key) {
+      state.scope.targetNodeKey = key;
+      state.scope.targetLabel = label;
+      state.scope.history = [];
+      document.getElementById('scope-target-label').textContent = `探測中：${label}`;
+    }
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+
+    // 平移（中鍵或空白鍵+左鍵）
+    if (e.button === 1 || (e.button === 0 && state.spacePressed)) {
+      state.panning = { startX: e.clientX, startY: e.clientY, viewX: state.view.x, viewY: state.view.y };
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (e.button !== 0) return;
+
+    const hit = hitTest(world.x, world.y);
+
+    // 如果正在拉線中
+    if (state.wiring) {
+      if (hit && hit.kind === 'pin') {
+        finishWiring({ x: hit.x, y: hit.y });
+      } else if (hit && hit.kind === 'wire') {
+        finishWiring({ x: snap(world.x), y: snap(world.y) });
+      } else {
+        // 點擊空白網格點，新增轉折錨點
+        const sn = { x: snap(world.x), y: snap(world.y) };
+        const last = state.wiring.points[state.wiring.points.length - 1];
+        const seg = computeOrthogonalPath(last, sn);
+        state.wiring.points.push(...seg.slice(1));
+      }
+      return;
+    }
+
+    if (hit && hit.kind === 'pin') {
+      // 開始拉線 & 示波器探測該腳位
+      setScopeTarget(`pin:${hit.compId}:${hit.pinId}`, `元件#${hit.compId} 腳位(${hit.pinId})`);
+      state.wiring = {
+        points: [{ x: hit.x, y: hit.y }],
+        mouseWorld: { x: hit.x, y: hit.y }
+      };
+      return;
+    }
+
+    if (hit && hit.kind === 'component') {
+      const comp = state.components.find(c => c.id === hit.id);
+      // 若點擊的是開關中心區域，直接切換狀態
+      if (comp.type === 'switch' && Math.hypot(world.x - comp.x, world.y - comp.y) < 18) {
+        pushHistory();
+        comp.props.closed = !comp.props.closed;
+        solveAndSync();
+      }
+      state.selectedId = comp.id;
+      state.selectedKind = 'component';
+      setScopeTarget(`comp:${comp.id}`, `${comp.name}`);
+      state.draggingComp = {
+        id: comp.id,
+        offsetX: world.x - comp.x,
+        offsetY: world.y - comp.y,
+        origX: comp.x,
+        origY: comp.y,
+        moved: false
+      };
+      renderInspector();
+      return;
+    }
+
+    if (hit && hit.kind === 'wire') {
+      state.selectedId = hit.id;
+      state.selectedKind = 'wire';
+      const w = state.wires.find(wr => wr.id === hit.id);
+      if (w) {
+        setScopeTarget(`wpt:${w.points[0].x},${w.points[0].y}`, `導線 #${w.id}`);
+      }
+      renderInspector();
+      return;
+    }
+
+    // 點擊空白處取消選取
+    state.selectedId = null;
+    state.selectedKind = null;
+    renderInspector();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (state.panning) {
+      state.view.x = state.panning.viewX + (e.clientX - state.panning.startX);
+      state.view.y = state.panning.viewY + (e.clientY - state.panning.startY);
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+
+    if (state.draggingComp) {
+      const comp = state.components.find(c => c.id === state.draggingComp.id);
+      if (comp) {
+        const nx = snap(world.x - state.draggingComp.offsetX);
+        const ny = snap(world.y - state.draggingComp.offsetY);
+        if (nx !== comp.x || ny !== comp.y) {
+          if (!state.draggingComp.moved) {
+            pushHistory();
+            state.draggingComp.moved = true;
+          }
+          comp.x = nx;
+          comp.y = ny;
+          solveAndSync();
+        }
+      }
+      return;
+    }
+
+    if (state.wiring) {
+      const hit = hitTest(world.x, world.y);
+      if (hit && hit.kind === 'pin') {
+        state.wiring.mouseWorld = { x: hit.x, y: hit.y };
+      } else {
+        state.wiring.mouseWorld = { x: snap(world.x), y: snap(world.y) };
+      }
+    }
+
+    state.hoveredItem = hitTest(world.x, world.y);
+    if (state.spacePressed) canvas.style.cursor = 'grab';
+    else if (state.hoveredItem && state.hoveredItem.kind === 'pin') canvas.style.cursor = 'crosshair';
+    else if (state.hoveredItem && state.hoveredItem.kind === 'component') canvas.style.cursor = 'pointer';
+    else canvas.style.cursor = 'default';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (state.panning) {
+      state.panning = null;
+      canvas.style.cursor = state.spacePressed ? 'grab' : 'default';
+    }
+    state.draggingComp = null;
+  });
+
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (state.wiring) {
+      state.wiring = null; // 右鍵取消目前拉線
+    }
+  });
+
+  function finishWiring(endPt) {
+    const w = state.wiring;
+    const last = w.points[w.points.length - 1];
+    const seg = computeOrthogonalPath(last, endPt);
+    const fullPts = simplifyWirePoints([...w.points, ...seg.slice(1)]);
+    state.wiring = null;
+    if (fullPts.length >= 2) {
+      pushHistory();
+      state.wires.push({ id: state.nextId++, points: fullPts });
+      solveAndSync();
+    }
+  }
+
+  // 滾輪縮放
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    const newZoom = Math.max(0.35, Math.min(2.5, state.view.zoom * factor));
+    state.view.x = sx - (sx - state.view.x) * (newZoom / state.view.zoom);
+    state.view.y = sy - (sy - state.view.y) * (newZoom / state.view.zoom);
+    state.view.zoom = newZoom;
+    zoomBadge.textContent = `${Math.round(newZoom * 100)}%`;
+  }, { passive: false });
+
+  // 鍵盤快捷鍵
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
+    if (e.code === 'Space') {
+      state.spacePressed = true;
+      canvas.style.cursor = 'grab';
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      deleteSelected();
+    } else if (e.key === 'r' || e.key === 'R') {
+      rotateSelected();
+    } else if (e.key === 'Escape') {
+      state.wiring = null;
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      state.spacePressed = false;
+      canvas.style.cursor = 'default';
+    }
+  });
+
+  // --- 左側元件庫與拖放 ---
+  function initPalette() {
+    const list = document.getElementById('palette-list');
+    list.innerHTML = COMPONENT_DEFS.map(def => `
+      <div class="palette-item" draggable="true" data-type="${def.type}">
+        <div class="palette-icon">${getPaletteSVG(def.type)}</div>
+        <div class="palette-info">
+          <span class="palette-title">${def.name}</span>
+          <span class="palette-desc">${def.desc}</span>
+        </div>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.palette-item').forEach(el => {
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', el.dataset.type);
+      });
+      // 也支援直接點擊於畫布中央建立
+      el.addEventListener('click', () => {
+        const rect = canvas.getBoundingClientRect();
+        const center = screenToWorld(rect.width / 2, rect.height / 2);
+        pushHistory();
+        const c = createComponent(el.dataset.type, center.x, center.y);
+        state.selectedId = c.id;
+        state.selectedKind = 'component';
+        renderInspector();
+        solveAndSync();
+      });
+    });
+
+    canvas.addEventListener('dragover', (e) => e.preventDefault());
+    canvas.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('text/plain');
+      if (!type) return;
+      const rect = canvas.getBoundingClientRect();
+      const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      pushHistory();
+      const c = createComponent(type, world.x, world.y);
+      state.selectedId = c.id;
+      state.selectedKind = 'component';
+      renderInspector();
+      solveAndSync();
+    });
+  }
+
+  function getPaletteSVG(type) {
+    const s = 'stroke="#e6edf3" stroke-width="2" fill="none"';
+    switch (type) {
+      case 'dc_source': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-15 0 H-4 M4 0 H15 M4 -8 V8" ${s}/><path d="M-4 -5 V5" stroke="#e6edf3" stroke-width="3.5"/></svg>`;
+      case 'ground': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M0 -10 V0 M-10 0 H10 M-6 4 H6 M-3 8 H3" ${s}/></svg>`;
+      case 'resistor': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H-10 M10 0 H16" ${s}/><rect x="-10" y="-5" width="20" height="10" rx="2" fill="#d2b48c"/></svg>`;
+      case 'capacitor': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H-3 M3 0 H16 M-3 -8 V8 M3 -8 V8" ${s}/></svg>`;
+      case 'led': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H16 M6 -7 V7" ${s}/><polygon points="-6,-7 6,0 -6,7" fill="#ef4444" stroke="#e6edf3" stroke-width="1.5"/></svg>`;
+      case 'switch': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H-7 M7 0 H16" ${s}/><path d="M-7 0 L7 -7" stroke="#2ea043" stroke-width="2"/></svg>`;
+      case 'voltmeter': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><circle cx="0" cy="0" r="9" stroke="#38bdf8" stroke-width="2" fill="none"/><text x="0" y="3.5" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">V</text></svg>`;
+      case 'ammeter': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><circle cx="0" cy="0" r="9" stroke="#a855f7" stroke-width="2" fill="none"/><text x="0" y="3.5" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">A</text></svg>`;
+      default: return '';
+    }
+  }
+
+  // --- 預設經典教學範例電路 ---
+  function loadPreset(name) {
+    state.components = [];
+    state.wires = [];
+    state.nextId = 1;
+    state.selectedId = null;
+    state.selectedKind = null;
+    state.historyStack = [];
+    state.redoStack = [];
+    state.simTime = 0;
+    state.shortCircuit = false;
+    state.scope.history = [];
+
+    // 重置視圖至畫布中央
+    const rect = canvas.getBoundingClientRect();
+    state.view = { x: rect.width / 2, y: rect.height / 2, zoom: 1.0 };
+    zoomBadge.textContent = '100%';
+
+    const addWire = (...pts) => {
+      state.wires.push({ id: state.nextId++, points: pts.map(p => ({ x: p[0], y: p[1] })) });
+    };
+
+    if (name === 'led_ohm') {
+      // 1. 基礎歐姆定律與 LED 限流電路
+      // 9V 電源 -> 開關 -> 330Ω 電阻 -> LED -> 電流表 -> GND
+      const vs = createComponent('dc_source', -160, 0, { voltage: 9 }, 270); // + 在上方 (-160, -40), - 在下方 (-160, 40)
+      const sw = createComponent('switch', -60, -100, { closed: true }, 0);
+      const r1 = createComponent('resistor', 60, -100, { resistance: 330 }, 0);
+      const led = createComponent('led', 160, 0, { vf: 2.0, maxCurrent: 0.03 }, 90); // A 在上 (160,-40), K 在下 (160,40)
+      const amm = createComponent('ammeter', 0, 100, {}, 180); // + 在右 (40,100), - 在左 (-40,100)
+      const gnd = createComponent('ground', -160, 120, {}, 0); // pin 在 (-160, 100)
+
+      addWire([-160, -40], [-160, -100], [-100, -100]); // vs+ to sw.a
+      addWire([-20, -100], [20, -100]);                 // sw.b to r1.a
+      addWire([100, -100], [160, -100], [160, -40]);    // r1.b to led.a
+      addWire([160, 40], [160, 100], [40, 100]);        // led.k to amm+
+      addWire([-40, 100], [-160, 100]);                 // amm- to gnd
+      addWire([-160, 40], [-160, 100]);                 // vs- to gnd
+      setScopeTarget(`pin:${led.id}:a`, 'LED 陽極電壓');
+    } else if (name === 'voltage_divider') {
+      // 2. 分壓器電路
+      // 12V 電源 + 1kΩ (R1) + 2kΩ (R2) + 並聯電壓表 (應顯示 8.00V)
+      createComponent('dc_source', -140, 0, { voltage: 12 }, 270);
+      const r1 = createComponent('resistor', 0, -60, { resistance: 1000 }, 90); // a:(0,-100), b:(0,-20)
+      const r2 = createComponent('resistor', 0, 60, { resistance: 2000 }, 90);  // a:(0,20), b:(0,100)
+      createComponent('voltmeter', 120, 60, {}, 90); // +:(120,20), -:(120,100)
+      createComponent('ground', -140, 120, {}, 0);
+
+      addWire([-140, -40], [-140, -100], [0, -100]);
+      addWire([0, -20], [0, 20]);
+      addWire([0, 20], [120, 20]);
+      addWire([0, 100], [-140, 100]);
+      addWire([120, 100], [0, 100]);
+      addWire([-140, 40], [-140, 100]);
+      setScopeTarget(`pin:${r2.id}:a`, '分壓輸出點 (R1-R2 接點)');
+    } else if (name === 'rc_transient') {
+      // 3. RC 充放電暫態電路
+      // 10V 電源 -> 開關 -> 1kΩ -> 節點Vc -> 1000µF 電容 -> GND，並聯 2kΩ 放電電阻與電壓表
+      createComponent('dc_source', -180, 0, { voltage: 10 }, 270);
+      createComponent('switch', -100, -100, { closed: true }, 0);
+      createComponent('resistor', 0, -100, { resistance: 1000 }, 0);
+      const cap = createComponent('capacitor', 100, 0, { capacitance: 0.001 }, 90); // +:(100,-40), -:(100,40)
+      createComponent('resistor', 200, 0, { resistance: 2000 }, 90); // 放電負載
+      createComponent('voltmeter', 280, 0, {}, 90);
+      createComponent('ground', -180, 120, {}, 0);
+
+      addWire([-180, -40], [-180, -100], [-140, -100]);
+      addWire([-60, -100], [-40, -100]);
+      addWire([40, -100], [100, -100], [100, -40]);
+      addWire([100, -100], [200, -100], [200, -40]);
+      addWire([200, -100], [280, -100], [280, -40]);
+      addWire([100, 40], [100, 100], [-180, 100]);
+      addWire([200, 40], [200, 100], [100, 100]);
+      addWire([280, 40], [280, 100], [200, 100]);
+      addWire([-180, 40], [-180, 100]);
+      setScopeTarget(`pin:${cap.id}:a`, '電容正極電壓 Vc(t)');
+    }
+
+    state.running = true;
+    updateRunButton();
+    updateHistoryButtons();
+    renderInspector();
+    solveAndSync();
+  }
+
+  // --- 工具列按鈕綁定 ---
+  btnRunPause.onclick = () => {
+    if (state.shortCircuit) return;
+    state.running = !state.running;
+    updateRunButton();
+    updateUIReadouts();
+  };
+
+  document.getElementById('btn-reset-sim').onclick = resetTransientState;
+  btnUndo.onclick = undo;
+  btnRedo.onclick = redo;
+  document.getElementById('btn-rotate').onclick = rotateSelected;
+  document.getElementById('btn-delete').onclick = deleteSelected;
+
+  document.getElementById('btn-clear').onclick = () => {
+    if (state.components.length === 0 && state.wires.length === 0) return;
+    pushHistory();
+    state.components = [];
+    state.wires = [];
+    state.selectedId = null;
+    state.selectedKind = null;
+    state.shortCircuit = false;
+    state.scope.history = [];
+    renderInspector();
+    solveAndSync();
+  };
+
+  document.getElementById('btn-zoom-reset').onclick = () => {
+    const rect = canvas.getBoundingClientRect();
+    state.view = { x: rect.width / 2, y: rect.height / 2, zoom: 1.0 };
+    zoomBadge.textContent = '100%';
+  };
+
+  document.getElementById('btn-scope-clear').onclick = () => {
+    state.scope.history = [];
+  };
+
+  document.getElementById('preset-select').onchange = (e) => {
+    if (e.target.value) {
+      loadPreset(e.target.value);
+      e.target.value = '';
+    }
+  };
+
+  // --- 初始化 ---
+  window.addEventListener('resize', resizeCanvases);
+  initPalette();
+  resizeCanvases();
+  // 預設載入第一個經典教學電路
+  loadPreset('led_ohm');
+  requestAnimationFrame(mainLoop);
+
+})();
+</script>
+</body>
+</html>
