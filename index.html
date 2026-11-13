@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>網頁版電子電路實驗室模擬器 | Electronic Circuit Lab</title>
 <style>
   :root {
@@ -26,6 +26,7 @@
   * {
     box-sizing: border-box;
     user-select: none;
+    -webkit-user-select: none;
   }
 
   body, html {
@@ -38,6 +39,7 @@
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 13px;
+    overscroll-behavior: none;
   }
 
   /* 自訂捲軸 */
@@ -63,8 +65,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 14px;
-    gap: 12px;
+    gap: 10px;
     z-index: 20;
+    overflow-x: auto;
   }
 
   .brand {
@@ -92,6 +95,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
   }
 
   .toolbar-divider {
@@ -158,6 +162,7 @@
     color: var(--text-secondary);
     padding: 0 8px;
     font-family: var(--font-mono);
+    white-space: nowrap;
   }
 
   .status-dot {
@@ -232,6 +237,7 @@
     border-radius: 6px;
     cursor: grab;
     transition: all 0.15s ease;
+    touch-action: none;
   }
 
   .palette-item:hover {
@@ -281,6 +287,25 @@
     line-height: 1.5;
   }
 
+  /* 觸控拖曳浮動幽靈標籤 */
+  .touch-drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    background: rgba(28, 34, 43, 0.92);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    transform: translate(-50%, -50%);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
   /* 中間區域（畫布 + 示波器） */
   .center-area {
     flex: 1;
@@ -302,6 +327,7 @@
     width: 100%;
     height: 100%;
     cursor: crosshair;
+    touch-action: none; /* 禁用瀏覽器預設觸控捲動與系統雙指縮放 */
   }
 
   /* 浮動警告訊息 */
@@ -388,12 +414,15 @@
     border-bottom: 1px solid var(--border-color);
     background-color: var(--bg-panel-alt);
     font-size: 12px;
+    overflow-x: auto;
+    gap: 10px;
   }
 
   .scope-title-group {
     display: flex;
     align-items: center;
     gap: 12px;
+    white-space: nowrap;
   }
 
   .scope-target {
@@ -408,6 +437,8 @@
     font-family: var(--font-mono);
     font-size: 11.5px;
     color: var(--text-secondary);
+    white-space: nowrap;
+    align-items: center;
   }
 
   .scope-stats span b {
@@ -470,12 +501,6 @@
     align-items: center;
   }
 
-  .prop-input-group {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-
   input[type="number"], input[type="text"] {
     background-color: var(--bg-input);
     color: var(--text-primary);
@@ -486,6 +511,7 @@
     font-family: var(--font-mono);
     width: 100%;
     user-select: text;
+    -webkit-user-select: text;
   }
 
   input[type="number"]:focus, input[type="text"]:focus {
@@ -620,9 +646,9 @@
       </div>
       <div class="palette-tip">
         <strong>操作提示：</strong><br>
-        1. 拖曳元件至畫布，或點擊後於畫布放置。<br>
-        2. 點擊元件腳位可開始「拉線」，點擊空白處可設定轉折點，點擊目標腳位或導線完成連接。<br>
-        3. 按住滑鼠中鍵或「空白鍵 + 左鍵」拖曳平移畫布，滾輪縮放。<br>
+        1. 拖曳元件至畫布，或輕點後直接於畫布中央放置。<br>
+        2. 點擊元件腳位開始「拉線」，點擊空白處設轉折點，點擊目標腳位或導線完成連接。<br>
+        3. <strong>平移/縮放</strong>：單指拖曳空白處平移，雙指張合縮放；桌機亦支援滾輪縮放與中鍵平移。<br>
         4. 點擊任一導線、腳位或元件，下方示波器即會追蹤該節點電壓。
       </div>
     </aside>
@@ -633,7 +659,7 @@
         <canvas id="circuit-canvas"></canvas>
         <div class="alert-stack" id="alert-stack"></div>
         <div class="canvas-hud" id="canvas-hud">
-          就緒 | 拖曳元件或點擊腳位拉線 | R: 旋轉 | Del: 刪除 | Ctrl+Z: 復原
+          就緒 | 拖曳空白處平移 | 雙指/滾輪縮放 | R: 旋轉 | Del: 刪除
         </div>
         <div class="canvas-zoom-badge" id="zoom-badge">100%</div>
       </div>
@@ -691,12 +717,7 @@
 /**
  * ============================================================================
  * 電子電路實驗室模擬器 (Electronic Circuit Lab Simulator)
- * 核心架構：
- * 1. 狀態管理與 Undo/Redo 歷史紀錄
- * 2. 網格畫布系統（縮放、平移、吸附、正交導線路由、電流粒子動畫）
- * 3. 電氣節點合併 (Union-Find) 與導線電流分配 (DFS)
- * 4. MNA (Modified Nodal Analysis) 線性/非線性電路求解器
- * 5. 即時示波器繪製引擎
+ * 支援滑鼠與 iPad / 平板多點觸控 (Pointer Events + Pinch-to-Zoom)
  * ============================================================================
  */
 
@@ -705,12 +726,13 @@
 
   // --- 常數定義 ---
   const GRID_SIZE = 20;
-  const PIN_HIT_RADIUS = 11;
-  const WIRE_HIT_DIST = 8;
-  const SIM_DT = 0.002; // 2ms 物理步長，兼顧 RC 暫態精準度與流暢度
-  const STEPS_PER_FRAME = 8; // 每幀執行 8 步 (16ms 對應約即時時間 1:1)
+  const PIN_HIT_RADIUS_MOUSE = 11;
+  const PIN_HIT_RADIUS_TOUCH = 20;
+  const WIRE_HIT_DIST_MOUSE = 8;
+  const WIRE_HIT_DIST_TOUCH = 15;
+  const SIM_DT = 0.002; // 2ms 物理步長
+  const STEPS_PER_FRAME = 8;
 
-  // 元件類型定義
   const COMPONENT_DEFS = [
     {
       type: 'dc_source',
@@ -742,7 +764,7 @@
       short: '電容',
       desc: '支援充放電暫態',
       pins: [{ id: 'a', label: '+', x: -40, y: 0 }, { id: 'b', label: '-', x: 40, y: 0 }],
-      defaultProps: { capacitance: 0.001 } // 1000 uF
+      defaultProps: { capacitance: 0.001 }
     },
     {
       type: 'led',
@@ -783,36 +805,32 @@
     components: [],
     wires: [],
     nextId: 1,
-    selectedId: null,     // 選取的元件或導線 ID
-    selectedKind: null,   // 'component' | 'wire'
-    hoveredItem: null,    // { kind, id, pinIndex }
+    selectedId: null,
+    selectedKind: null,
+    hoveredItem: null,
     running: true,
     simTime: 0,
     shortCircuit: false,
     noGroundWarning: false,
     autoGndNode: null,
-    // 視圖變換
     view: { x: 0, y: 0, zoom: 1.0 },
-    // 拉線暫存狀態
-    wiring: null, // { startPin: { compId, pinId, x, y } | null, startWirePt: { x, y } | null, points: [], mouseWorld: { x, y } }
-    // 拖曳狀態
-    draggingComp: null, // { id, offsetX, offsetY, moved }
-    panning: null,      // { startX, startY, viewX, viewY }
+    wiring: null,
+    draggingComp: null,
+    panning: null,      // { startX, startY, viewX, viewY, moved, pointerId, isBlankTap }
+    pinch: null,        // { dist, midX, midY }
     spacePressed: false,
-    // 模擬結果快取
-    nodeVoltages: {},   // nodeId -> voltage
-    pinToNode: {},      // "compId:pinId" -> nodeId
-    wirePointToNode: {},// "x,y" -> nodeId
-    compResults: {},    // compId -> { current, voltageDrop, power, vA, vB }
-    wireCurrents: {},   // wireId -> current (從 points[0] 到 points[last] 為正)
-    // 示波器狀態
+    activePointers: new Map(), // pointerId -> { x, y, type }
+    nodeVoltages: {},
+    pinToNode: {},
+    wirePointToNode: {},
+    compResults: {},
+    wireCurrents: {},
     scope: {
-      targetNodeKey: null, // 例如 "pin:1:a" 或 "wire:5" 或 "pt:100,200"
+      targetNodeKey: null,
       targetLabel: '',
-      history: [],         // { t, v }
+      history: [],
       maxPoints: 300
     },
-    // Undo / Redo
     historyStack: [],
     redoStack: []
   };
@@ -846,18 +864,10 @@
     };
   }
 
-  function worldToScreen(wx, wy) {
-    return {
-      x: wx * state.view.zoom + state.view.x,
-      y: wy * state.view.zoom + state.view.y
-    };
-  }
-
   function getCompDef(type) {
     return COMPONENT_DEFS.find(d => d.type === type);
   }
 
-  // 取得元件腳位在世界座標的位置
   function getPinWorldPos(comp, pinDef) {
     const rad = (comp.rotation || 0) * Math.PI / 180;
     const cos = Math.round(Math.cos(rad));
@@ -877,7 +887,6 @@
     }));
   }
 
-  // 數值格式化
   function formatUnit(val, unit, decimals = 2) {
     if (val === undefined || val === null || isNaN(val)) return `-- ${unit}`;
     const abs = Math.abs(val);
@@ -889,19 +898,10 @@
     return `${val.toFixed(decimals)} ${unit}`;
   }
 
-  // 電阻四環色碼計算
   function getResistorColorBands(ohms) {
     const colors = [
-      '#1a1a1a', // 0 黑
-      '#7b3f00', // 1 棕
-      '#d9261c', // 2 紅
-      '#ff7b00', // 3 橙
-      '#ffd000', // 4 黃
-      '#2ea043', // 5 綠
-      '#2563eb', // 6 藍
-      '#9333ea', // 7 紫
-      '#6b7280', // 8 灰
-      '#f3f4f6'  // 9 白
+      '#1a1a1a', '#7b3f00', '#d9261c', '#ff7b00', '#ffd000',
+      '#2ea043', '#2563eb', '#9333ea', '#6b7280', '#f3f4f6'
     ];
     if (ohms < 1) return [colors[0], colors[0], colors[0], '#d4af37'];
     const exp = Math.floor(Math.log10(ohms));
@@ -977,7 +977,6 @@
       y: snap(y),
       rotation,
       props: { ...def.defaultProps, ...customProps },
-      // 暫態內部狀態（例如電容上一刻電壓）
       state: { vPrev: 0 }
     };
     state.components.push(comp);
@@ -1013,12 +1012,8 @@
     state.shortCircuit = false;
     state.scope.history = [];
     for (const c of state.components) {
-      if (c.type === 'capacitor') {
-        c.state = { vPrev: 0 };
-      }
-      if (c.type === 'led') {
-        c.props.burned = false;
-      }
+      if (c.type === 'capacitor') c.state = { vPrev: 0 };
+      if (c.type === 'led') c.props.burned = false;
     }
     if (!state.running) {
       state.running = true;
@@ -1027,17 +1022,14 @@
     solveAndSync();
   }
 
-  // --- 正交轉折路徑計算 (Manhattan Routing) ---
+  // --- 正交轉折路徑計算 ---
   function computeOrthogonalPath(p1, p2) {
     if (p1.x === p2.x || p1.y === p2.y) {
       return [{ x: p1.x, y: p1.y }, { x: p2.x, y: p2.y }];
     }
-    // 優先水平再垂直
-    const midX = p2.x;
-    const midY = p1.y;
     return [
       { x: p1.x, y: p1.y },
-      { x: midX, y: midY },
+      { x: p2.x, y: p1.y },
       { x: p2.x, y: p2.y }
     ];
   }
@@ -1049,9 +1041,7 @@
       const a = res[res.length - 1];
       const b = pts[i];
       const c = pts[i + 1];
-      if ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y)) {
-        continue; // 共線點省略
-      }
+      if ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y)) continue;
       if (a.x === b.x && a.y === b.y) continue;
       res.push(b);
     }
@@ -1076,8 +1066,7 @@
       if (ra !== rb) parent.set(ra, rb);
     }
 
-    // 1. 註冊所有元件腳位座標
-    const coordMap = new Map(); // "x,y" -> [key1, key2...]
+    const coordMap = new Map();
     function registerCoord(x, y, key) {
       const ck = `${x},${y}`;
       if (!coordMap.has(ck)) coordMap.set(ck, []);
@@ -1093,7 +1082,6 @@
       }
     }
 
-    // 2. 註冊所有導線頂點與線段上的中間網格交點（支援 T 型連接）
     for (const wire of state.wires) {
       if (wire.points.length < 2) continue;
       for (let i = 0; i < wire.points.length; i++) {
@@ -1108,7 +1096,6 @@
       }
     }
 
-    // 檢查是否有腳位或導線端點落在其他導線的線段中間（T-junction）
     for (const [ck, keys] of coordMap.entries()) {
       const [px, py] = ck.split(',').map(Number);
       for (const wire of state.wires) {
@@ -1122,20 +1109,17 @@
       }
     }
 
-    // 同座標的所有 key 合併
     for (const keys of coordMap.values()) {
       for (let i = 1; i < keys.length; i++) {
         union(keys[0], keys[i]);
       }
     }
 
-    // 3. 指派連續數字節點 ID（GND 為 0）
     const rootToNode = new Map();
     let gndRoot = null;
     for (const comp of state.components) {
       if (comp.type === 'ground') {
-        const pk = `pin:${comp.id}:g`;
-        gndRoot = find(pk);
+        gndRoot = find(`pin:${comp.id}:g`);
         break;
       }
     }
@@ -1145,7 +1129,6 @@
 
     if (!gndRoot && state.components.length > 0) {
       state.noGroundWarning = true;
-      // 自動挑選電源負極或第一個元件的第一支腳位當暫時參考點
       const vs = state.components.find(c => c.type === 'dc_source');
       if (vs) {
         gndRoot = find(`pin:${vs.id}:n`);
@@ -1159,7 +1142,6 @@
 
     if (gndRoot) {
       rootToNode.set(gndRoot, 0);
-      // 若有多個 GND 元件，全部合併為節點 0
       for (const comp of state.components) {
         if (comp.type === 'ground') {
           rootToNode.set(find(`pin:${comp.id}:g`), 0);
@@ -1175,9 +1157,7 @@
       const pins = getCompPinsWorld(comp);
       for (const p of pins) {
         const r = find(`pin:${comp.id}:${p.id}`);
-        if (!rootToNode.has(r)) {
-          rootToNode.set(r, nextNodeId++);
-        }
+        if (!rootToNode.has(r)) rootToNode.set(r, nextNodeId++);
         pinToNode[`${comp.id}:${p.id}`] = rootToNode.get(r);
       }
     }
@@ -1185,9 +1165,7 @@
     for (const wire of state.wires) {
       for (const pt of wire.points) {
         const r = find(`wpt:${pt.x},${pt.y}`);
-        if (!rootToNode.has(r)) {
-          rootToNode.set(r, nextNodeId++);
-        }
+        if (!rootToNode.has(r)) rootToNode.set(r, nextNodeId++);
         wirePointToNode[`${pt.x},${pt.y}`] = rootToNode.get(r);
       }
     }
@@ -1199,20 +1177,15 @@
   }
 
   function pointOnSegment(px, py, x1, y1, x2, y2) {
-    if (x1 === x2 && px === x1) {
-      return py >= Math.min(y1, y2) && py <= Math.max(y1, y2);
-    }
-    if (y1 === y2 && py === y1) {
-      return px >= Math.min(x1, x2) && px <= Math.max(x1, x2);
-    }
+    if (x1 === x2 && px === x1) return py >= Math.min(y1, y2) && py <= Math.max(y1, y2);
+    if (y1 === y2 && py === y1) return px >= Math.min(x1, x2) && px <= Math.max(x1, x2);
     return false;
   }
 
-  // --- 高斯消去法求解線性系統 Ax = z (Partial Pivoting) ---
+  // --- 高斯消去法求解線性系統 ---
   function solveLinearSystem(A, z) {
     const n = z.length;
     if (n === 0) return [];
-    // 建立擴增複製避免破壞原陣列
     const M = A.map((row, i) => [...row, z[i]]);
 
     for (let col = 0; col < n; col++) {
@@ -1225,9 +1198,7 @@
           maxRow = row;
         }
       }
-      if (maxVal < 1e-12) {
-        return null; // 矩陣奇異（例如兩電壓源並聯或無參考路徑）
-      }
+      if (maxVal < 1e-12) return null;
       if (maxRow !== col) {
         const tmp = M[col];
         M[col] = M[maxRow];
@@ -1246,9 +1217,7 @@
     const x = new Array(n).fill(0);
     for (let i = n - 1; i >= 0; i--) {
       let sum = M[i][n];
-      for (let j = i + 1; j < n; j++) {
-        sum -= M[i][j] * x[j];
-      }
+      for (let j = i + 1; j < n; j++) sum -= M[i][j] * x[j];
       x[i] = sum / M[i][i];
     }
     return x;
@@ -1266,7 +1235,6 @@
 
     const { numNodes, pinToNode } = buildElectricalTopology();
 
-    // 偵測直流電源正負極是否被直接短接在同一節點
     for (const comp of state.components) {
       if (comp.type === 'dc_source') {
         const np = pinToNode[`${comp.id}:p`];
@@ -1278,7 +1246,6 @@
       }
     }
 
-    // 收集 MNA 電壓源變數 (DC 電源與理想電流表)
     const voltageSources = [];
     for (const comp of state.components) {
       if (comp.type === 'dc_source') {
@@ -1307,7 +1274,6 @@
     }
 
     const leds = state.components.filter(c => c.type === 'led' && !c.props.burned);
-    // 初始化 LED 猜測壓降（沿用上次結果加快收斂）
     const ledVd = new Map();
     for (const led of leds) {
       const prev = state.compResults[led.id];
@@ -1321,10 +1287,7 @@
       const A = Array.from({ length: totalSize }, () => new Array(totalSize).fill(0));
       const z = new Array(totalSize).fill(0);
 
-      // 加上極小對地洩漏電導防止懸空節點奇異
-      for (let i = 0; i < numNodes; i++) {
-        A[i][i] += 1e-11;
-      }
+      for (let i = 0; i < numNodes; i++) A[i][i] += 1e-11;
 
       const addConductance = (n1, n2, g) => {
         if (n1 > 0) A[n1 - 1][n1 - 1] += g;
@@ -1340,32 +1303,21 @@
         if (toNode > 0) z[toNode - 1] += iVal;
       };
 
-      // 填入被動與線性化元件
       for (const comp of state.components) {
         if (comp.type === 'resistor') {
-          const na = pinToNode[`${comp.id}:a`];
-          const nb = pinToNode[`${comp.id}:b`];
-          const r = Math.max(1e-3, comp.props.resistance);
-          addConductance(na, nb, 1 / r);
+          addConductance(pinToNode[`${comp.id}:a`], pinToNode[`${comp.id}:b`], 1 / Math.max(1e-3, comp.props.resistance));
         } else if (comp.type === 'switch') {
-          const na = pinToNode[`${comp.id}:a`];
-          const nb = pinToNode[`${comp.id}:b`];
-          const g = comp.props.closed ? 1000 : 1e-9; // 閉合 1mΩ，開路 1GΩ
-          addConductance(na, nb, g);
+          addConductance(pinToNode[`${comp.id}:a`], pinToNode[`${comp.id}:b`], comp.props.closed ? 1000 : 1e-9);
         } else if (comp.type === 'voltmeter') {
-          const na = pinToNode[`${comp.id}:p`];
-          const nb = pinToNode[`${comp.id}:n`];
-          addConductance(na, nb, 1e-8); // 100 MΩ 內阻
+          addConductance(pinToNode[`${comp.id}:p`], pinToNode[`${comp.id}:n`], 1e-8);
         } else if (comp.type === 'capacitor') {
           const na = pinToNode[`${comp.id}:a`];
           const nb = pinToNode[`${comp.id}:b`];
           const C = Math.max(1e-9, comp.props.capacitance);
           const geq = C / dt;
           const vPrev = comp.state.vPrev || 0;
-          const ieq = geq * vPrev;
           addConductance(na, nb, geq);
-          // 伴隨電流源由負極指向正極（等效於從 b 流出到 a）
-          addCurrentSource(nb, na, ieq);
+          addCurrentSource(nb, na, geq * vPrev);
         } else if (comp.type === 'led') {
           const na = pinToNode[`${comp.id}:a`];
           const nk = pinToNode[`${comp.id}:k`];
@@ -1374,14 +1326,12 @@
           } else {
             const vd = ledVd.get(comp.id);
             const { id, gd } = evalLedModel(vd, comp.props.vf);
-            const ieq = id - gd * vd;
             addConductance(na, nk, gd);
-            addCurrentSource(na, nk, ieq);
+            addCurrentSource(na, nk, id - gd * vd);
           }
         }
       }
 
-      // 填入電壓源方程式
       voltageSources.forEach((vs, idx) => {
         const k = numNodes + idx;
         if (vs.pNode > 0) {
@@ -1401,7 +1351,6 @@
         return;
       }
 
-      // 檢查 LED Newton-Raphson 收斂
       if (leds.length === 0) break;
       let maxDiff = 0;
       for (const led of leds) {
@@ -1413,32 +1362,24 @@
         const oldVd = ledVd.get(led.id);
         const diff = newVd - oldVd;
         maxDiff = Math.max(maxDiff, Math.abs(diff));
-        // 阻尼限制步長避免指數震盪
-        const clampedDiff = Math.max(-0.25, Math.min(0.25, diff));
-        ledVd.set(led.id, oldVd + clampedDiff);
+        ledVd.set(led.id, oldVd + Math.max(-0.25, Math.min(0.25, diff)));
       }
       if (maxDiff < 1e-5) break;
     }
 
-    // 整理節點電壓
     const nodeVoltages = { 0: 0 };
-    for (let i = 1; i <= numNodes; i++) {
-      nodeVoltages[i] = solution[i - 1];
-    }
+    for (let i = 1; i <= numNodes; i++) nodeVoltages[i] = solution[i - 1];
     state.nodeVoltages = nodeVoltages;
 
-    // 檢查電源是否發生過流短路 (> 50A)
     for (let idx = 0; idx < voltageSources.length; idx++) {
       const vs = voltageSources[idx];
-      const iVal = solution[numNodes + idx];
-      if (vs.comp.type === 'dc_source' && Math.abs(iVal) > 50) {
+      if (vs.comp.type === 'dc_source' && Math.abs(solution[numNodes + idx]) > 50) {
         triggerShortCircuit();
         return;
       }
     }
     state.shortCircuit = false;
 
-    // 計算每個元件的電流、壓降與功率
     const compResults = {};
     const vsIndexMap = new Map();
     voltageSources.forEach((vs, idx) => vsIndexMap.set(vs.comp.id, idx));
@@ -1454,15 +1395,12 @@
       const vA = nodeVoltages[nA] || 0;
       const vB = nodeVoltages[nB] || 0;
       const vDrop = vA - vB;
-      let current = 0; // 定義為從 pins[0] 流向 pins[1]
+      let current = 0;
 
       if (comp.type === 'dc_source') {
-        const idx = vsIndexMap.get(comp.id);
-        // MNA 中 I_k 是從 + 流進電源到 -，所以對外輸出電流為 -I_k
-        current = -solution[numNodes + idx];
+        current = -solution[numNodes + vsIndexMap.get(comp.id)];
       } else if (comp.type === 'ammeter') {
-        const idx = vsIndexMap.get(comp.id);
-        current = solution[numNodes + idx];
+        current = solution[numNodes + vsIndexMap.get(comp.id)];
       } else if (comp.type === 'resistor') {
         current = vDrop / Math.max(1e-3, comp.props.resistance);
       } else if (comp.type === 'switch') {
@@ -1471,18 +1409,13 @@
         current = vDrop * 1e-8;
       } else if (comp.type === 'capacitor') {
         const C = Math.max(1e-9, comp.props.capacitance);
-        const geq = C / dt;
-        current = geq * (vDrop - (comp.state.vPrev || 0));
-        if (advanceTransient) {
-          comp.state.vPrev = vDrop;
-        }
+        current = (C / dt) * (vDrop - (comp.state.vPrev || 0));
+        if (advanceTransient) comp.state.vPrev = vDrop;
       } else if (comp.type === 'led') {
         if (comp.props.burned) {
           current = vDrop * 1e-9;
         } else {
-          const { id } = evalLedModel(vDrop, comp.props.vf);
-          current = id;
-          // 過流燒毀檢測
+          current = evalLedModel(vDrop, comp.props.vf).id;
           if (advanceTransient && current > comp.props.maxCurrent * 1.05) {
             comp.props.burned = true;
           }
@@ -1502,10 +1435,9 @@
     computeWireCurrents(pinToNode, compResults);
   }
 
-  // 平滑 LED 模型（肖克萊方程式 + 5Ω 內阻線性延拓，確保數值穩定）
   function evalLedModel(vd, vf) {
     const Is = 1e-12;
-    const VtPrime = vf / 23.719; // 使 Vd = Vf 時約為 20mA
+    const VtPrime = vf / 23.719;
     const vLin = vf + 0.12;
     const gLeak = 1e-9;
     if (vd <= vLin) {
@@ -1517,10 +1449,7 @@
       const expLin = Math.exp(vLin / VtPrime);
       const idLin = Is * (expLin - 1) + gLeak * vLin;
       const gdLin = Math.min(0.2, (Is / VtPrime) * expLin + gLeak);
-      return {
-        id: idLin + gdLin * (vd - vLin),
-        gd: gdLin
-      };
+      return { id: idLin + gdLin * (vd - vLin), gd: gdLin };
     }
   }
 
@@ -1530,11 +1459,9 @@
     updateRunButton();
   }
 
-  // 使用節點內部圖與 KCL 推算每段導線的電流（用於電流流動動畫）
   function computeWireCurrents(pinToNode, compResults) {
     state.wireCurrents = {};
-    // 對每條導線建立頂點鄰接表
-    const ptInject = new Map(); // "x,y" -> 流入該座標的元件電流總和
+    const ptInject = new Map();
     const addInject = (x, y, val) => {
       const k = `${x},${y}`;
       ptInject.set(k, (ptInject.get(k) || 0) + val);
@@ -1545,13 +1472,11 @@
       if (!res) continue;
       const pins = getCompPinsWorld(comp);
       if (pins.length === 2) {
-        // 電流從 pin[0] 流向 pin[1]：pin[0] 從外部吸取電流 (對導線為負)，pin[1] 注入外部 (對導線為正)
         addInject(pins[0].x, pins[0].y, -res.current);
         addInject(pins[1].x, pins[1].y, res.current);
       }
     }
 
-    // 建立導線圖
     const adj = new Map();
     for (const wire of state.wires) {
       if (wire.points.length < 2) continue;
@@ -1565,7 +1490,6 @@
       adj.get(k2).push({ to: k1, wireId: wire.id, dir: -1 });
     }
 
-    // DFS 遍歷生成樹以計算支路電流
     const visited = new Set();
     function dfs(u, parentWireId) {
       visited.add(u);
@@ -1575,8 +1499,6 @@
         if (edge.wireId === parentWireId) continue;
         if (!visited.has(edge.to)) {
           const childFlow = dfs(edge.to, edge.wireId);
-          // childFlow 是從 edge.to 流向 u 的電流；若為正，代表電流從 edge.to 流出進入 u
-          // 若 edge.dir === 1 (wire 從 u 到 edge.to)，則 wire 正向電流 = -childFlow
           state.wireCurrents[edge.wireId] = edge.dir === 1 ? -childFlow : childFlow;
           netOut += childFlow;
         }
@@ -1585,9 +1507,7 @@
     }
 
     for (const key of adj.keys()) {
-      if (!visited.has(key)) {
-        dfs(key, null);
-      }
+      if (!visited.has(key)) dfs(key, null);
     }
   }
 
@@ -1639,7 +1559,7 @@
       updateUIReadouts();
     }
 
-    drawMainCanvas(elapsed);
+    drawMainCanvas();
     drawScopeCanvas();
     requestAnimationFrame(mainLoop);
   }
@@ -1656,7 +1576,6 @@
   }
 
   function updateUIReadouts() {
-    // 狀態燈與警告橫幅
     if (state.shortCircuit) {
       statusDot.className = 'status-dot error';
       statusText.textContent = '偵測到短路！已停止';
@@ -1682,10 +1601,8 @@
     alertStack.innerHTML = alertsHtml;
 
     dashTime.textContent = `${state.simTime.toFixed(2)} s`;
-    const nodeCount = Object.keys(state.nodeVoltages).length;
-    dashNodes.textContent = nodeCount;
+    dashNodes.textContent = Object.keys(state.nodeVoltages).length;
 
-    // 更新右側儀表板列表
     const meters = state.components.filter(c =>
       ['voltmeter', 'ammeter', 'dc_source', 'led', 'capacitor'].includes(c.type)
     );
@@ -1716,7 +1633,6 @@
       });
     }
 
-    // 若右側有選取元件，即時更新其數值讀數
     const liveReadout = document.getElementById('inspector-live-readout');
     if (liveReadout && state.selectedKind === 'component') {
       const res = state.compResults[state.selectedId];
@@ -1849,7 +1765,6 @@
 
     inspectorContent.innerHTML = propsHtml;
 
-    // 綁定事件
     document.getElementById('insp-name').onchange = (e) => {
       pushHistory();
       comp.name = e.target.value || def.short;
@@ -1940,26 +1855,11 @@
     ctx.translate(state.view.x, state.view.y);
     ctx.scale(state.view.zoom, state.view.zoom);
 
-    // 1. 繪製背景網格
     drawGrid(w, h);
-
-    // 2. 繪製導線
-    for (const wire of state.wires) {
-      drawWire(wire);
-    }
-
-    // 3. 繪製節點接點圓點（兩條以上導線交會或 T 型連接）
+    for (const wire of state.wires) drawWire(wire);
     drawJunctionDots();
-
-    // 4. 繪製元件
-    for (const comp of state.components) {
-      drawComponent(comp);
-    }
-
-    // 5. 繪製正在拉線的預覽線
-    if (state.wiring) {
-      drawWiringPreview();
-    }
+    for (const comp of state.components) drawComponent(comp);
+    if (state.wiring) drawWiringPreview();
 
     ctx.restore();
   }
@@ -1994,13 +1894,12 @@
     const isSelected = state.selectedKind === 'wire' && state.selectedId === wire.id;
     const isHovered = state.hoveredItem && state.hoveredItem.kind === 'wire' && state.hoveredItem.id === wire.id;
 
-    // 依據節點電壓給導線微弱色彩提示
     const pt = wire.points[0];
     const nid = state.wirePointToNode[`${pt.x},${pt.y}`];
     const v = state.nodeVoltages[nid] || 0;
     let baseColor = '#4b5563';
-    if (nid === 0) baseColor = '#3b82f6'; // 接地線偏藍
-    else if (v > 0.5) baseColor = '#10b981'; // 正電位偏綠
+    if (nid === 0) baseColor = '#3b82f6';
+    else if (v > 0.5) baseColor = '#10b981';
 
     if (isSelected) baseColor = '#38bdf8';
     else if (isHovered) baseColor = '#93c5fd';
@@ -2018,7 +1917,6 @@
     }
     ctx.stroke();
 
-    // 繪製電流流動動畫粒子
     const current = state.wireCurrents[wire.id] || 0;
     if (state.running && !state.shortCircuit && Math.abs(current) > 1e-6) {
       drawCurrentParticles(wire.points, current);
@@ -2027,7 +1925,6 @@
   }
 
   function drawCurrentParticles(points, current) {
-    // 計算總長度與各段長度
     const segs = [];
     let totalLen = 0;
     for (let i = 1; i < points.length; i++) {
@@ -2042,7 +1939,6 @@
     if (totalLen === 0) return;
 
     const absI = Math.abs(current);
-    // 對數映射速度 (px/s)
     const speed = Math.min(180, 25 + Math.log10(1 + absI * 1000) * 65);
     const spacing = 36;
     const dir = current >= 0 ? 1 : -1;
@@ -2057,10 +1953,8 @@
       for (const s of segs) {
         if (acc + s.len >= dist) {
           const t = (dist - acc) / s.len;
-          const px = s.x1 + s.dx * t;
-          const py = s.y1 + s.dy * t;
           ctx.beginPath();
-          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.arc(s.x1 + s.dx * t, s.y1 + s.dy * t, 3, 0, Math.PI * 2);
           ctx.fill();
           break;
         }
@@ -2100,7 +1994,6 @@
     ctx.translate(comp.x, comp.y);
     ctx.rotate((comp.rotation || 0) * Math.PI / 180);
 
-    // 選取或懸停光框
     if (isSelected || isHovered) {
       ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)';
       ctx.lineWidth = 1.5;
@@ -2109,26 +2002,20 @@
       ctx.setLineDash([]);
     }
 
-    // 繪製各元件本體
     ctx.strokeStyle = '#e6edf3';
     ctx.fillStyle = '#161b22';
     ctx.lineWidth = 2;
 
     if (comp.type === 'dc_source') {
-      // 導線腳
       ctx.beginPath();
       ctx.moveTo(-40, 0); ctx.lineTo(-10, 0);
       ctx.moveTo(40, 0); ctx.lineTo(10, 0);
-      ctx.stroke();
-      // 電池符號（長線正極在 +40 側，短粗線負極在 -40 側）
-      ctx.beginPath();
       ctx.moveTo(10, -16); ctx.lineTo(10, 16);
       ctx.stroke();
       ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.moveTo(-10, -9); ctx.lineTo(-10, 9);
       ctx.stroke();
-      // + / - 標記
       ctx.fillStyle = '#f85149';
       ctx.font = 'bold 12px monospace';
       ctx.fillText('+', 16, -8);
@@ -2146,14 +2033,12 @@
       ctx.moveTo(-40, 0); ctx.lineTo(-22, 0);
       ctx.moveTo(22, 0); ctx.lineTo(40, 0);
       ctx.stroke();
-      // 電阻本體
       ctx.fillStyle = '#d2b48c';
       ctx.strokeStyle = '#a1887f';
       ctx.beginPath();
       ctx.roundRect(-22, -9, 44, 18, 4);
       ctx.fill();
       ctx.stroke();
-      // 四環色碼
       const bands = getResistorColorBands(comp.props.resistance);
       const bx = [-14, -6, 2, 12];
       bands.forEach((col, idx) => {
@@ -2173,7 +2058,6 @@
       ctx.moveTo(10, 0); ctx.lineTo(40, 0);
       ctx.stroke();
 
-      // 發光光暈
       const brightness = (!comp.props.burned && res.current > 0.0005)
         ? Math.min(1, res.current / 0.02)
         : 0;
@@ -2187,7 +2071,6 @@
         ctx.fill();
       }
 
-      // 二極體三角形與陰極線
       ctx.fillStyle = comp.props.burned ? '#27272a' : (brightness > 0.05 ? '#ff5252' : '#991b1b');
       ctx.strokeStyle = '#e6edf3';
       ctx.beginPath();
@@ -2201,7 +2084,6 @@
       ctx.moveTo(10, -11); ctx.lineTo(10, 11);
       ctx.stroke();
 
-      // 燒毀叉叉特效
       if (comp.props.burned) {
         ctx.strokeStyle = '#f85149';
         ctx.lineWidth = 2.5;
@@ -2220,7 +2102,6 @@
       ctx.arc(-16, 0, 3.5, 0, Math.PI * 2);
       ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
       ctx.fill();
-      // 撥桿
       ctx.strokeStyle = comp.props.closed ? '#2ea043' : '#f59e0b';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -2247,10 +2128,8 @@
       ctx.fillText(comp.type === 'voltmeter' ? 'V' : 'A', 0, 1);
     }
 
-    // 繪製元件標籤與即時數值（反向旋轉文字保持水平可讀）
     ctx.save();
     ctx.rotate(-((comp.rotation || 0) * Math.PI / 180));
-    ctx.fillStyle = '#8b949e';
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
 
@@ -2268,10 +2147,8 @@
       ctx.fillText(labelText, 0, -22);
     }
     ctx.restore();
-
     ctx.restore();
 
-    // 繪製腳位端點（世界座標）
     const pins = getCompPinsWorld(comp);
     for (const p of pins) {
       const isPinHovered = state.hoveredItem && state.hoveredItem.kind === 'pin'
@@ -2308,7 +2185,6 @@
     const h = scopeCanvas.height / window.devicePixelRatio;
     scopeCtx.clearRect(0, 0, w, h);
 
-    // 格線
     scopeCtx.strokeStyle = '#16202a';
     scopeCtx.lineWidth = 1;
     const cols = 10, rows = 4;
@@ -2343,17 +2219,15 @@
     document.getElementById('scope-val-max').textContent = `${maxV.toFixed(2)} V`;
     document.getElementById('scope-val-min').textContent = `${minV.toFixed(2)} V`;
 
-    // 自動垂直縮放範圍
     let yMin = Math.min(0, minV);
     let yMax = Math.max(5, maxV);
-    if (yMax - yMin < 1) { yMax = yMin + 1; }
+    if (yMax - yMin < 1) yMax = yMin + 1;
     const pad = (yMax - yMin) * 0.15;
     yMin -= pad;
     yMax += pad;
 
     const mapY = (v) => h - ((v - yMin) / (yMax - yMin)) * h;
 
-    // 0V 基準線
     const y0 = mapY(0);
     if (y0 >= 0 && y0 <= h) {
       scopeCtx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
@@ -2365,7 +2239,6 @@
       scopeCtx.setLineDash([]);
     }
 
-    // 繪製波形
     scopeCtx.strokeStyle = '#38bdf8';
     scopeCtx.lineWidth = 2;
     scopeCtx.shadowColor = '#38bdf8';
@@ -2380,7 +2253,6 @@
     scopeCtx.stroke();
     scopeCtx.shadowBlur = 0;
 
-    // 刻度文字
     scopeCtx.fillStyle = '#6e7681';
     scopeCtx.font = '10px monospace';
     scopeCtx.textAlign = 'left';
@@ -2388,31 +2260,31 @@
     scopeCtx.fillText(`${yMin.toFixed(1)}V`, 6, h - 6);
   }
 
-  // --- 滑鼠與鍵盤互動 ---
-  function hitTest(wx, wy) {
-    // 1. 優先檢查腳位
+  // --- Pointer Events 統一互動處理 (滑鼠 + iPad 觸控 + 雙指縮放) ---
+  function hitTest(wx, wy, isTouch = false) {
+    const pinR = (isTouch ? PIN_HIT_RADIUS_TOUCH : PIN_HIT_RADIUS_MOUSE) / state.view.zoom;
+    const wireR = (isTouch ? WIRE_HIT_DIST_TOUCH : WIRE_HIT_DIST_MOUSE) / state.view.zoom;
+
     for (const comp of state.components) {
       const pins = getCompPinsWorld(comp);
       for (const p of pins) {
-        if (Math.hypot(wx - p.x, wy - p.y) <= PIN_HIT_RADIUS / state.view.zoom) {
+        if (Math.hypot(wx - p.x, wy - p.y) <= pinR) {
           return { kind: 'pin', compId: comp.id, pinId: p.id, x: p.x, y: p.y };
         }
       }
     }
-    // 2. 檢查元件本體
     for (let i = state.components.length - 1; i >= 0; i--) {
       const c = state.components[i];
-      if (Math.abs(wx - c.x) <= 36 && Math.abs(wy - c.y) <= 24) {
+      if (Math.abs(wx - c.x) <= 38 && Math.abs(wy - c.y) <= 26) {
         return { kind: 'component', id: c.id };
       }
     }
-    // 3. 檢查導線
     for (let i = state.wires.length - 1; i >= 0; i--) {
       const w = state.wires[i];
       for (let j = 1; j < w.points.length; j++) {
         const a = w.points[j - 1];
         const b = w.points[j];
-        if (distToSegment(wx, wy, a.x, a.y, b.x, b.y) <= WIRE_HIT_DIST / state.view.zoom) {
+        if (distToSegment(wx, wy, a.x, a.y, b.x, b.y) <= wireR) {
           return { kind: 'wire', id: w.id };
         }
       }
@@ -2437,41 +2309,83 @@
     }
   }
 
-  canvas.addEventListener('mousedown', (e) => {
+  function finishWiring(endPt) {
+    const w = state.wiring;
+    const last = w.points[w.points.length - 1];
+    const seg = computeOrthogonalPath(last, endPt);
+    const fullPts = simplifyWirePoints([...w.points, ...seg.slice(1)]);
+    state.wiring = null;
+    if (fullPts.length >= 2) {
+      pushHistory();
+      state.wires.push({ id: state.nextId++, points: fullPts });
+      solveAndSync();
+    }
+  }
+
+  function getTwoPointerMetrics() {
+    const pts = Array.from(state.activePointers.values());
+    const dx = pts[1].x - pts[0].x;
+    const dy = pts[1].y - pts[0].y;
+    return {
+      dist: Math.hypot(dx, dy),
+      midX: (pts[0].x + pts[1].x) / 2,
+      midY: (pts[0].y + pts[1].y) / 2
+    };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
     const rect = canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+    const isTouch = e.pointerType === 'touch';
+
+    state.activePointers.set(e.pointerId, { x: sx, y: sy, type: e.pointerType });
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+    // 雙指觸控：啟動雙指縮放與平移，中止單指操作
+    if (state.activePointers.size === 2) {
+      state.draggingComp = null;
+      state.panning = null;
+      state.pinch = getTwoPointerMetrics();
+      return;
+    }
+
+    if (state.activePointers.size > 2) return;
+
     const world = screenToWorld(sx, sy);
 
-    // 平移（中鍵或空白鍵+左鍵）
+    // 滑鼠中鍵或空白鍵 + 左鍵直接平移
     if (e.button === 1 || (e.button === 0 && state.spacePressed)) {
-      state.panning = { startX: e.clientX, startY: e.clientY, viewX: state.view.x, viewY: state.view.y };
+      state.panning = {
+        startX: sx, startY: sy,
+        viewX: state.view.x, viewY: state.view.y,
+        moved: false, pointerId: e.pointerId, isBlankTap: false
+      };
       canvas.style.cursor = 'grabbing';
       return;
     }
 
-    if (e.button !== 0) return;
+    if (e.button !== 0 && !isTouch) return;
 
-    const hit = hitTest(world.x, world.y);
+    const hit = hitTest(world.x, world.y, isTouch);
 
-    // 如果正在拉線中
+    // 正在拉線中
     if (state.wiring) {
       if (hit && hit.kind === 'pin') {
         finishWiring({ x: hit.x, y: hit.y });
       } else if (hit && hit.kind === 'wire') {
         finishWiring({ x: snap(world.x), y: snap(world.y) });
       } else {
-        // 點擊空白網格點，新增轉折錨點
         const sn = { x: snap(world.x), y: snap(world.y) };
         const last = state.wiring.points[state.wiring.points.length - 1];
         const seg = computeOrthogonalPath(last, sn);
         state.wiring.points.push(...seg.slice(1));
+        state.wiring.mouseWorld = sn;
       }
       return;
     }
 
     if (hit && hit.kind === 'pin') {
-      // 開始拉線 & 示波器探測該腳位
       setScopeTarget(`pin:${hit.compId}:${hit.pinId}`, `元件#${hit.compId} 腳位(${hit.pinId})`);
       state.wiring = {
         points: [{ x: hit.x, y: hit.y }],
@@ -2482,12 +2396,6 @@
 
     if (hit && hit.kind === 'component') {
       const comp = state.components.find(c => c.id === hit.id);
-      // 若點擊的是開關中心區域，直接切換狀態
-      if (comp.type === 'switch' && Math.hypot(world.x - comp.x, world.y - comp.y) < 18) {
-        pushHistory();
-        comp.props.closed = !comp.props.closed;
-        solveAndSync();
-      }
       state.selectedId = comp.id;
       state.selectedKind = 'component';
       setScopeTarget(`comp:${comp.id}`, `${comp.name}`);
@@ -2495,9 +2403,11 @@
         id: comp.id,
         offsetX: world.x - comp.x,
         offsetY: world.y - comp.y,
-        origX: comp.x,
-        origY: comp.y,
-        moved: false
+        startScreenX: sx,
+        startScreenY: sy,
+        moved: false,
+        pointerId: e.pointerId,
+        hitCenter: Math.hypot(world.x - comp.x, world.y - comp.y) < 22
       };
       renderInspector();
       return;
@@ -2507,32 +2417,68 @@
       state.selectedId = hit.id;
       state.selectedKind = 'wire';
       const w = state.wires.find(wr => wr.id === hit.id);
-      if (w) {
-        setScopeTarget(`wpt:${w.points[0].x},${w.points[0].y}`, `導線 #${w.id}`);
-      }
+      if (w) setScopeTarget(`wpt:${w.points[0].x},${w.points[0].y}`, `導線 #${w.id}`);
       renderInspector();
       return;
     }
 
-    // 點擊空白處取消選取
-    state.selectedId = null;
-    state.selectedKind = null;
-    renderInspector();
+    // 點擊空白處：若移動超過 5px 則平移畫布，若未移動放開則取消選取
+    state.panning = {
+      startX: sx, startY: sy,
+      viewX: state.view.x, viewY: state.view.y,
+      moved: false, pointerId: e.pointerId, isBlankTap: true
+    };
   });
 
-  window.addEventListener('mousemove', (e) => {
-    if (state.panning) {
-      state.view.x = state.panning.viewX + (e.clientX - state.panning.startX);
-      state.view.y = state.panning.viewY + (e.clientY - state.panning.startY);
-      return;
-    }
-
+  canvas.addEventListener('pointermove', (e) => {
     const rect = canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+    const isTouch = e.pointerType === 'touch';
+
+    if (state.activePointers.has(e.pointerId)) {
+      state.activePointers.set(e.pointerId, { x: sx, y: sy, type: e.pointerType });
+    }
+
+    // 雙指縮放與平移
+    if (state.activePointers.size === 2 && state.pinch) {
+      const cur = getTwoPointerMetrics();
+      if (state.pinch.dist > 10 && cur.dist > 10) {
+        const scaleFactor = cur.dist / state.pinch.dist;
+        const newZoom = Math.max(0.35, Math.min(2.5, state.view.zoom * scaleFactor));
+        const actualFactor = newZoom / state.view.zoom;
+
+        // 先依兩指中心位移平移，再以新中心縮放
+        state.view.x += cur.midX - state.pinch.midX;
+        state.view.y += cur.midY - state.pinch.midY;
+        state.view.x = cur.midX - (cur.midX - state.view.x) * actualFactor;
+        state.view.y = cur.midY - (cur.midY - state.view.y) * actualFactor;
+        state.view.zoom = newZoom;
+        zoomBadge.textContent = `${Math.round(newZoom * 100)}%`;
+      }
+      state.pinch = cur;
+      return;
+    }
+
+    // 單指或滑鼠平移
+    if (state.panning && state.panning.pointerId === e.pointerId) {
+      const dx = sx - state.panning.startX;
+      const dy = sy - state.panning.startY;
+      if (!state.panning.moved && Math.hypot(dx, dy) > 5) {
+        state.panning.moved = true;
+        canvas.style.cursor = 'grabbing';
+      }
+      if (state.panning.moved) {
+        state.view.x = state.panning.viewX + dx;
+        state.view.y = state.panning.viewY + dy;
+      }
+      return;
+    }
+
     const world = screenToWorld(sx, sy);
 
-    if (state.draggingComp) {
+    // 拖曳元件
+    if (state.draggingComp && state.draggingComp.pointerId === e.pointerId) {
       const comp = state.components.find(c => c.id === state.draggingComp.id);
       if (comp) {
         const nx = snap(world.x - state.draggingComp.offsetX);
@@ -2550,8 +2496,9 @@
       return;
     }
 
+    // 拉線即時預覽
     if (state.wiring) {
-      const hit = hitTest(world.x, world.y);
+      const hit = hitTest(world.x, world.y, isTouch);
       if (hit && hit.kind === 'pin') {
         state.wiring.mouseWorld = { x: hit.x, y: hit.y };
       } else {
@@ -2559,42 +2506,56 @@
       }
     }
 
-    state.hoveredItem = hitTest(world.x, world.y);
-    if (state.spacePressed) canvas.style.cursor = 'grab';
-    else if (state.hoveredItem && state.hoveredItem.kind === 'pin') canvas.style.cursor = 'crosshair';
-    else if (state.hoveredItem && state.hoveredItem.kind === 'component') canvas.style.cursor = 'pointer';
-    else canvas.style.cursor = 'default';
+    // 滑鼠懸停高亮
+    if (!isTouch) {
+      state.hoveredItem = hitTest(world.x, world.y, false);
+      if (state.spacePressed) canvas.style.cursor = 'grab';
+      else if (state.hoveredItem && state.hoveredItem.kind === 'pin') canvas.style.cursor = 'crosshair';
+      else if (state.hoveredItem && state.hoveredItem.kind === 'component') canvas.style.cursor = 'pointer';
+      else canvas.style.cursor = 'default';
+    }
   });
 
-  window.addEventListener('mouseup', () => {
-    if (state.panning) {
+  function handlePointerEnd(e) {
+    state.activePointers.delete(e.pointerId);
+    if (state.activePointers.size < 2) {
+      state.pinch = null;
+    }
+
+    if (state.panning && state.panning.pointerId === e.pointerId) {
+      if (!state.panning.moved && state.panning.isBlankTap) {
+        state.selectedId = null;
+        state.selectedKind = null;
+        renderInspector();
+      }
       state.panning = null;
       canvas.style.cursor = state.spacePressed ? 'grab' : 'default';
     }
-    state.draggingComp = null;
-  });
 
-  canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    if (state.wiring) {
-      state.wiring = null; // 右鍵取消目前拉線
-    }
-  });
-
-  function finishWiring(endPt) {
-    const w = state.wiring;
-    const last = w.points[w.points.length - 1];
-    const seg = computeOrthogonalPath(last, endPt);
-    const fullPts = simplifyWirePoints([...w.points, ...seg.slice(1)]);
-    state.wiring = null;
-    if (fullPts.length >= 2) {
-      pushHistory();
-      state.wires.push({ id: state.nextId++, points: fullPts });
-      solveAndSync();
+    if (state.draggingComp && state.draggingComp.pointerId === e.pointerId) {
+      // 若點擊開關中心且沒有拖曳移動，則切換開關
+      if (!state.draggingComp.moved && state.draggingComp.hitCenter) {
+        const comp = state.components.find(c => c.id === state.draggingComp.id);
+        if (comp && comp.type === 'switch') {
+          pushHistory();
+          comp.props.closed = !comp.props.closed;
+          renderInspector();
+          solveAndSync();
+        }
+      }
+      state.draggingComp = null;
     }
   }
 
-  // 滾輪縮放
+  canvas.addEventListener('pointerup', handlePointerEnd);
+  canvas.addEventListener('pointercancel', handlePointerEnd);
+
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (state.wiring) state.wiring = null;
+  });
+
+  // 滾輪縮放（桌機滑鼠 / 外接觸控板）
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -2637,7 +2598,7 @@
     }
   });
 
-  // --- 左側元件庫與拖放 ---
+  // --- 左側元件庫（同時支援桌機滑鼠拖放與 iPad 觸控拖放） ---
   function initPalette() {
     const list = document.getElementById('palette-list');
     list.innerHTML = COMPONENT_DEFS.map(def => `
@@ -2651,15 +2612,84 @@
     `).join('');
 
     list.querySelectorAll('.palette-item').forEach(el => {
+      const type = el.dataset.type;
+
+      // 桌機 HTML5 Drag-and-Drop
       el.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', el.dataset.type);
+        e.dataTransfer.setData('text/plain', type);
       });
-      // 也支援直接點擊於畫布中央建立
+
+      // 觸控與點擊統一處理
+      let touchDrag = null;
+
+      el.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') return; // 滑鼠交給原生 dragstart / click
+        e.preventDefault();
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        touchDrag = {
+          pointerId: e.pointerId,
+          startX: e.clientX,
+          startY: e.clientY,
+          dragging: false,
+          ghost: null
+        };
+      });
+
+      el.addEventListener('pointermove', (e) => {
+        if (!touchDrag || touchDrag.pointerId !== e.pointerId) return;
+        const dist = Math.hypot(e.clientX - touchDrag.startX, e.clientY - touchDrag.startY);
+        if (!touchDrag.dragging && dist > 8) {
+          touchDrag.dragging = true;
+          const def = getCompDef(type);
+          const ghost = document.createElement('div');
+          ghost.className = 'touch-drag-ghost';
+          ghost.innerHTML = `${getPaletteSVG(type)}<span>${def.short}</span>`;
+          document.body.appendChild(ghost);
+          touchDrag.ghost = ghost;
+        }
+        if (touchDrag.ghost) {
+          touchDrag.ghost.style.left = `${e.clientX}px`;
+          touchDrag.ghost.style.top = `${e.clientY}px`;
+        }
+      });
+
+      const endTouchDrag = (e) => {
+        if (!touchDrag || touchDrag.pointerId !== e.pointerId) return;
+        if (touchDrag.ghost) {
+          touchDrag.ghost.remove();
+          const rect = canvas.getBoundingClientRect();
+          if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            pushHistory();
+            const c = createComponent(type, world.x, world.y);
+            state.selectedId = c.id;
+            state.selectedKind = 'component';
+            renderInspector();
+            solveAndSync();
+          }
+        } else {
+          // 輕點元件庫項目，直接建立於畫布中央
+          const rect = canvas.getBoundingClientRect();
+          const center = screenToWorld(rect.width / 2, rect.height / 2);
+          pushHistory();
+          const c = createComponent(type, center.x, center.y);
+          state.selectedId = c.id;
+          state.selectedKind = 'component';
+          renderInspector();
+          solveAndSync();
+        }
+        touchDrag = null;
+      };
+
+      el.addEventListener('pointerup', endTouchDrag);
+      el.addEventListener('pointercancel', endTouchDrag);
+
+      // 桌機點擊建立
       el.addEventListener('click', () => {
         const rect = canvas.getBoundingClientRect();
         const center = screenToWorld(rect.width / 2, rect.height / 2);
         pushHistory();
-        const c = createComponent(el.dataset.type, center.x, center.y);
+        const c = createComponent(type, center.x, center.y);
         state.selectedId = c.id;
         state.selectedKind = 'component';
         renderInspector();
@@ -2711,7 +2741,6 @@
     state.shortCircuit = false;
     state.scope.history = [];
 
-    // 重置視圖至畫布中央
     const rect = canvas.getBoundingClientRect();
     state.view = { x: rect.width / 2, y: rect.height / 2, zoom: 1.0 };
     zoomBadge.textContent = '100%';
@@ -2721,29 +2750,25 @@
     };
 
     if (name === 'led_ohm') {
-      // 1. 基礎歐姆定律與 LED 限流電路
-      // 9V 電源 -> 開關 -> 330Ω 電阻 -> LED -> 電流表 -> GND
-      const vs = createComponent('dc_source', -160, 0, { voltage: 9 }, 270); // + 在上方 (-160, -40), - 在下方 (-160, 40)
-      const sw = createComponent('switch', -60, -100, { closed: true }, 0);
-      const r1 = createComponent('resistor', 60, -100, { resistance: 330 }, 0);
-      const led = createComponent('led', 160, 0, { vf: 2.0, maxCurrent: 0.03 }, 90); // A 在上 (160,-40), K 在下 (160,40)
-      const amm = createComponent('ammeter', 0, 100, {}, 180); // + 在右 (40,100), - 在左 (-40,100)
-      const gnd = createComponent('ground', -160, 120, {}, 0); // pin 在 (-160, 100)
+      createComponent('dc_source', -160, 0, { voltage: 9 }, 270);
+      createComponent('switch', -60, -100, { closed: true }, 0);
+      createComponent('resistor', 60, -100, { resistance: 330 }, 0);
+      const led = createComponent('led', 160, 0, { vf: 2.0, maxCurrent: 0.03 }, 90);
+      createComponent('ammeter', 0, 100, {}, 180);
+      createComponent('ground', -160, 120, {}, 0);
 
-      addWire([-160, -40], [-160, -100], [-100, -100]); // vs+ to sw.a
-      addWire([-20, -100], [20, -100]);                 // sw.b to r1.a
-      addWire([100, -100], [160, -100], [160, -40]);    // r1.b to led.a
-      addWire([160, 40], [160, 100], [40, 100]);        // led.k to amm+
-      addWire([-40, 100], [-160, 100]);                 // amm- to gnd
-      addWire([-160, 40], [-160, 100]);                 // vs- to gnd
+      addWire([-160, -40], [-160, -100], [-100, -100]);
+      addWire([-20, -100], [20, -100]);
+      addWire([100, -100], [160, -100], [160, -40]);
+      addWire([160, 40], [160, 100], [40, 100]);
+      addWire([-40, 100], [-160, 100]);
+      addWire([-160, 40], [-160, 100]);
       setScopeTarget(`pin:${led.id}:a`, 'LED 陽極電壓');
     } else if (name === 'voltage_divider') {
-      // 2. 分壓器電路
-      // 12V 電源 + 1kΩ (R1) + 2kΩ (R2) + 並聯電壓表 (應顯示 8.00V)
       createComponent('dc_source', -140, 0, { voltage: 12 }, 270);
-      const r1 = createComponent('resistor', 0, -60, { resistance: 1000 }, 90); // a:(0,-100), b:(0,-20)
-      const r2 = createComponent('resistor', 0, 60, { resistance: 2000 }, 90);  // a:(0,20), b:(0,100)
-      createComponent('voltmeter', 120, 60, {}, 90); // +:(120,20), -:(120,100)
+      createComponent('resistor', 0, -60, { resistance: 1000 }, 90);
+      const r2 = createComponent('resistor', 0, 60, { resistance: 2000 }, 90);
+      createComponent('voltmeter', 120, 60, {}, 90);
       createComponent('ground', -140, 120, {}, 0);
 
       addWire([-140, -40], [-140, -100], [0, -100]);
@@ -2754,13 +2779,11 @@
       addWire([-140, 40], [-140, 100]);
       setScopeTarget(`pin:${r2.id}:a`, '分壓輸出點 (R1-R2 接點)');
     } else if (name === 'rc_transient') {
-      // 3. RC 充放電暫態電路
-      // 10V 電源 -> 開關 -> 1kΩ -> 節點Vc -> 1000µF 電容 -> GND，並聯 2kΩ 放電電阻與電壓表
       createComponent('dc_source', -180, 0, { voltage: 10 }, 270);
       createComponent('switch', -100, -100, { closed: true }, 0);
       createComponent('resistor', 0, -100, { resistance: 1000 }, 0);
-      const cap = createComponent('capacitor', 100, 0, { capacitance: 0.001 }, 90); // +:(100,-40), -:(100,40)
-      createComponent('resistor', 200, 0, { resistance: 2000 }, 90); // 放電負載
+      const cap = createComponent('capacitor', 100, 0, { capacitance: 0.001 }, 90);
+      createComponent('resistor', 200, 0, { resistance: 2000 }, 90);
       createComponent('voltmeter', 280, 0, {}, 90);
       createComponent('ground', -180, 120, {}, 0);
 
@@ -2831,7 +2854,6 @@
   window.addEventListener('resize', resizeCanvases);
   initPalette();
   resizeCanvases();
-  // 預設載入第一個經典教學電路
   loadPreset('led_ohm');
   requestAnimationFrame(mainLoop);
 
