@@ -1,2863 +1,347 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>網頁版電子電路實驗室模擬器 | Electronic Circuit Lab</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>殘餘噪音抵銷器</title>
 <style>
-  :root {
-    --bg-app: #0d1117;
-    --bg-panel: #161b22;
-    --bg-panel-alt: #1c222b;
-    --bg-input: #0d1117;
-    --border-color: #30363d;
-    --border-hover: #58a6ff;
-    --text-primary: #e6edf3;
-    --text-secondary: #8b949e;
-    --accent: #38bdf8;
-    --accent-hover: #7dd3fc;
-    --success: #2ea043;
-    --warning: #d29922;
-    --danger: #f85149;
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", Roboto, Helvetica, Arial, sans-serif;
-    --font-mono: "JetBrains Mono", "Fira Code", Consolas, Monaco, monospace;
-  }
-
-  * {
-    box-sizing: border-box;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  body, html {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background-color: var(--bg-app);
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 13px;
-    overscroll-behavior: none;
-  }
-
-  /* 自訂捲軸 */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg-panel); }
-  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
-
-  /* 整體佈局 */
-  .app-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    width: 100vw;
-  }
-
-  /* 頂部工具列 */
-  .toolbar {
-    height: 48px;
-    background-color: var(--bg-panel);
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 14px;
-    gap: 10px;
-    z-index: 20;
-    overflow-x: auto;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 600;
-    font-size: 14px;
-    letter-spacing: 0.3px;
-    color: var(--text-primary);
-    white-space: nowrap;
-  }
-
-  .brand-badge {
-    background: rgba(56, 189, 248, 0.15);
-    color: var(--accent);
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-family: var(--font-mono);
-  }
-
-  .toolbar-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-
-  .toolbar-divider {
-    width: 1px;
-    height: 22px;
-    background-color: var(--border-color);
-    margin: 0 4px;
-  }
-
-  button, select {
-    background-color: var(--bg-panel-alt);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 5px 10px;
-    font-size: 12px;
-    font-family: var(--font-sans);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
-  }
-
-  button:hover:not(:disabled), select:hover {
-    border-color: var(--border-hover);
-    background-color: #242c37;
-  }
-
-  button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  button.primary {
-    background-color: rgba(46, 160, 67, 0.2);
-    border-color: rgba(46, 160, 67, 0.6);
-    color: #56d364;
-  }
-  button.primary:hover:not(:disabled) {
-    background-color: rgba(46, 160, 67, 0.35);
-  }
-
-  button.paused {
-    background-color: rgba(210, 153, 34, 0.2);
-    border-color: rgba(210, 153, 34, 0.6);
-    color: #e3b341;
-  }
-
-  button.danger {
-    color: #ff7b72;
-  }
-  button.danger:hover:not(:disabled) {
-    border-color: var(--danger);
-    background-color: rgba(248, 81, 73, 0.15);
-  }
-
-  .sim-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    padding: 0 8px;
-    font-family: var(--font-mono);
-    white-space: nowrap;
-  }
-
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--success);
-    box-shadow: 0 0 8px var(--success);
-  }
-  .status-dot.paused {
-    background-color: var(--warning);
-    box-shadow: 0 0 6px var(--warning);
-  }
-  .status-dot.error {
-    background-color: var(--danger);
-    box-shadow: 0 0 8px var(--danger);
-    animation: pulse-red 1s infinite;
-  }
-
-  @keyframes pulse-red {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  /* 主工作區 */
-  .workspace {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-    position: relative;
-  }
-
-  /* 左側元件庫 */
-  .palette-panel {
-    width: 220px;
-    background-color: var(--bg-panel);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    z-index: 10;
-  }
-
-  .panel-header {
-    padding: 10px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-panel);
-    position: sticky;
-    top: 0;
-    z-index: 2;
-  }
-
-  .palette-list {
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .palette-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    background-color: var(--bg-panel-alt);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    cursor: grab;
-    transition: all 0.15s ease;
-    touch-action: none;
-  }
-
-  .palette-item:hover {
-    border-color: var(--accent);
-    background-color: #212832;
-    transform: translateY(-1px);
-  }
-
-  .palette-item:active {
-    cursor: grabbing;
-  }
-
-  .palette-icon {
-    width: 36px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .palette-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .palette-title {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  .palette-desc {
-    font-size: 11px;
-    color: var(--text-secondary);
-  }
-
-  .palette-tip {
-    margin: 10px;
-    padding: 10px;
-    background: rgba(56, 189, 248, 0.06);
-    border: 1px solid rgba(56, 189, 248, 0.2);
-    border-radius: 6px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-  }
-
-  /* 觸控拖曳浮動幽靈標籤 */
-  .touch-drag-ghost {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    background: rgba(28, 34, 43, 0.92);
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-    transform: translate(-50%, -50%);
-    color: var(--text-primary);
-    font-size: 12px;
-    font-weight: 500;
-  }
-
-  /* 中間區域（畫布 + 示波器） */
-  .center-area {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
-    background-color: var(--bg-app);
-  }
-
-  .canvas-container {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-  }
-
-  #circuit-canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    cursor: crosshair;
-    touch-action: none; /* 禁用瀏覽器預設觸控捲動與系統雙指縮放 */
-  }
-
-  /* 浮動警告訊息 */
-  .alert-stack {
-    position: absolute;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    z-index: 15;
-    pointer-events: none;
-    max-width: 80%;
-  }
-
-  .alert-banner {
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-    pointer-events: auto;
-  }
-
-  .alert-error {
-    background-color: rgba(60, 20, 22, 0.95);
-    border: 1px solid var(--danger);
-    color: #ffa198;
-  }
-
-  .alert-warning {
-    background-color: rgba(56, 42, 16, 0.92);
-    border: 1px solid var(--warning);
-    color: #f0c674;
-  }
-
-  .canvas-hud {
-    position: absolute;
-    bottom: 10px;
-    left: 12px;
-    background: rgba(22, 27, 34, 0.85);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 5px 10px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    pointer-events: none;
-    backdrop-filter: blur(4px);
-  }
-
-  .canvas-zoom-badge {
-    position: absolute;
-    bottom: 10px;
-    right: 12px;
-    background: rgba(22, 27, 34, 0.85);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 4px 8px;
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--text-secondary);
-  }
-
-  /* 下方即時示波器面板 */
-  .scope-panel {
-    height: 175px;
-    background-color: var(--bg-panel);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    z-index: 10;
-  }
-
-  .scope-header {
-    height: 32px;
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-panel-alt);
-    font-size: 12px;
-    overflow-x: auto;
-    gap: 10px;
-  }
-
-  .scope-title-group {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    white-space: nowrap;
-  }
-
-  .scope-target {
-    color: var(--accent);
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-  }
-
-  .scope-stats {
-    display: flex;
-    gap: 14px;
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    align-items: center;
-  }
-
-  .scope-stats span b {
-    color: var(--text-primary);
-    font-weight: 600;
-  }
-
-  .scope-body {
-    flex: 1;
-    position: relative;
-    background-color: #090d12;
-  }
-
-  #scope-canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-
-  /* 右側屬性與儀表板 */
-  .inspector-panel {
-    width: 270px;
-    background-color: var(--bg-panel);
-    border-left: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    z-index: 10;
-  }
-
-  .inspector-section {
-    padding: 12px;
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .inspector-empty {
-    color: var(--text-secondary);
-    font-size: 12px;
-    line-height: 1.6;
-    text-align: center;
-    padding: 16px 8px;
-  }
-
-  .prop-row {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-bottom: 12px;
-  }
-
-  .prop-row:last-child {
-    margin-bottom: 0;
-  }
-
-  .prop-label {
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  input[type="number"], input[type="text"] {
-    background-color: var(--bg-input);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 5px 8px;
-    font-size: 12px;
-    font-family: var(--font-mono);
-    width: 100%;
-    user-select: text;
-    -webkit-user-select: text;
-  }
-
-  input[type="number"]:focus, input[type="text"]:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  input[type="range"] {
-    width: 100%;
-    accent-color: var(--accent);
-    cursor: pointer;
-  }
-
-  .readout-card {
-    background-color: var(--bg-panel-alt);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 8px 10px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .readout-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .readout-label {
-    font-size: 10.5px;
-    color: var(--text-secondary);
-  }
-
-  .readout-value {
-    font-size: 13px;
-    font-family: var(--font-mono);
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  .meter-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .meter-item {
-    background-color: var(--bg-panel-alt);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 7px 9px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .meter-item:hover {
-    border-color: var(--border-hover);
-  }
-
-  .meter-name {
-    color: var(--text-secondary);
-  }
-
-  .meter-val {
-    font-family: var(--font-mono);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .btn-row {
-    display: flex;
-    gap: 6px;
-    margin-top: 10px;
-  }
-  .btn-row button {
-    flex: 1;
-    justify-content: center;
-  }
+:root{--bg:#0f1418;--card:#182028;--line:#2a3640;--tx:#e6edf2;--mut:#8b9aa6;--acc:#3ecf9a;--warn:#f0b24a;--bad:#ef6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 -apple-system,"PingFang TC","Noto Sans TC",sans-serif;padding:14px 14px 60px;max-width:720px;margin:auto}
+h1{font-size:20px;margin:6px 0 2px}
+h2{font-size:16px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+p.sub{color:var(--mut);font-size:13px;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+button{font:inherit;color:var(--tx);background:#243039;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+button.big{width:100%;font-size:18px;font-weight:600;padding:14px;background:var(--acc);color:#06281c;border:0}
+button.big.on{background:var(--bad);color:#fff}
+button:active{opacity:.7}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{flex:0 0 76px;font-size:13px;color:var(--mut)}
+.row input[type=range]{flex:1;min-width:0;accent-color:var(--acc);height:30px}
+.row output{flex:0 0 62px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+input[type=number]{font:inherit;width:84px;background:#0f1418;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px}
+input[type=checkbox]{width:22px;height:22px;accent-color:var(--acc)}
+.tone{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.tone .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tone .stat{margin-left:auto;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+canvas{width:100%;height:150px;display:block;background:#0b1013;border-radius:10px}
+.msg{font-size:13px;border-radius:10px;padding:10px;margin:10px 0;display:none}
+.msg.warn{display:block;background:#3a2c10;color:var(--warn)}
+.msg.bad{display:block;background:#3b1717;color:#ffb3b3}
+.meter{height:8px;background:#0b1013;border-radius:4px;overflow:hidden;flex:1}
+.meter i{display:block;height:100%;width:0;background:var(--acc)}
+details{font-size:13px;color:var(--mut)} details summary{color:var(--tx);font-size:14px;padding:4px 0}
+details li{margin:4px 0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 </head>
 <body>
+<h1>殘餘噪音抵銷器</h1>
+<p class="sub">麥克風即時收音 → 鎖定低頻嗡嗡聲輸出反相 → 其餘用自適應遮蔽蓋掉</p>
 
-<div class="app-container">
-  <!-- 頂部工具列 -->
-  <header class="toolbar">
-    <div class="brand">
-      <span>電子電路實驗室模擬器</span>
-      <span class="brand-badge">MNA ENGINE</span>
-    </div>
-
-    <div class="toolbar-group">
-      <label for="preset-select" style="color: var(--text-secondary); font-size: 12px;">載入範例電路:</label>
-      <select id="preset-select">
-        <option value="">-- 選擇經典範例 --</option>
-        <option value="led_ohm">1. 基礎歐姆定律與 LED 限流電路</option>
-        <option value="voltage_divider">2. 分壓器電路</option>
-        <option value="rc_transient">3. RC 充放電暫態電路</option>
-      </select>
-    </div>
-
-    <div class="toolbar-group">
-      <button id="btn-run-pause" class="primary">暫停模擬</button>
-      <button id="btn-reset-sim" title="重設電容電量、模擬時間與燒毀狀態">重設暫態/修復</button>
-      <div class="toolbar-divider"></div>
-      <button id="btn-undo" title="復原 (Ctrl+Z)">復原</button>
-      <button id="btn-redo" title="重做 (Ctrl+Y)">重做</button>
-      <button id="btn-rotate" title="旋轉選取元件 (R)">旋轉</button>
-      <button id="btn-delete" class="danger" title="刪除選取項目 (Delete)">刪除</button>
-      <button id="btn-clear" class="danger">清空畫布</button>
-      <div class="toolbar-divider"></div>
-      <button id="btn-zoom-reset" title="重設視圖縮放與位置">重設視圖</button>
-    </div>
-
-    <div class="sim-status">
-      <div id="status-dot" class="status-dot"></div>
-      <span id="status-text">模擬執行中</span>
-    </div>
-  </header>
-
-  <!-- 主工作區 -->
-  <div class="workspace">
-    <!-- 左側元件庫 -->
-    <aside class="palette-panel">
-      <div class="panel-header">電子元件庫</div>
-      <div class="palette-list" id="palette-list">
-        <!-- 由 JS 動態生成元件項目 -->
-      </div>
-      <div class="palette-tip">
-        <strong>操作提示：</strong><br>
-        1. 拖曳元件至畫布，或輕點後直接於畫布中央放置。<br>
-        2. 點擊元件腳位開始「拉線」，點擊空白處設轉折點，點擊目標腳位或導線完成連接。<br>
-        3. <strong>平移/縮放</strong>：單指拖曳空白處平移，雙指張合縮放；桌機亦支援滾輪縮放與中鍵平移。<br>
-        4. 點擊任一導線、腳位或元件，下方示波器即會追蹤該節點電壓。
-      </div>
-    </aside>
-
-    <!-- 中間畫布與示波器 -->
-    <main class="center-area">
-      <div class="canvas-container" id="canvas-container">
-        <canvas id="circuit-canvas"></canvas>
-        <div class="alert-stack" id="alert-stack"></div>
-        <div class="canvas-hud" id="canvas-hud">
-          就緒 | 拖曳空白處平移 | 雙指/滾輪縮放 | R: 旋轉 | Del: 刪除
-        </div>
-        <div class="canvas-zoom-badge" id="zoom-badge">100%</div>
-      </div>
-
-      <!-- 下方即時動態示波器 -->
-      <section class="scope-panel">
-        <div class="scope-header">
-          <div class="scope-title-group">
-            <span style="font-weight: 600;">即時動態示波器 (Oscilloscope)</span>
-            <span class="scope-target" id="scope-target-label">探棒未連接 (請點擊畫布上的節點、導線或元件)</span>
-          </div>
-          <div class="scope-stats">
-            <span>即時: <b id="scope-val-now">--</b></span>
-            <span>最大: <b id="scope-val-max">--</b></span>
-            <span>最小: <b id="scope-val-min">--</b></span>
-            <button id="btn-scope-clear" style="padding: 2px 8px; font-size: 11px;">清除波形</button>
-          </div>
-        </div>
-        <div class="scope-body">
-          <canvas id="scope-canvas"></canvas>
-        </div>
-      </section>
-    </main>
-
-    <!-- 右側屬性與儀表板 -->
-    <aside class="inspector-panel">
-      <div class="panel-header">元件屬性設定</div>
-      <div class="inspector-section" id="inspector-content">
-        <div class="inspector-empty">
-          尚未選取任何元件或導線。<br>點擊畫布上的元件可修改參數與查看即時電氣數值。
-        </div>
-      </div>
-
-      <div class="panel-header">即時電路儀表板</div>
-      <div class="inspector-section">
-        <div class="readout-card" style="margin-top: 0; margin-bottom: 12px;">
-          <div class="readout-item">
-            <span class="readout-label">模擬時間</span>
-            <span class="readout-value" id="dash-time">0.00 s</span>
-          </div>
-          <div class="readout-item">
-            <span class="readout-label">電氣節點數</span>
-            <span class="readout-value" id="dash-nodes">0</span>
-          </div>
-        </div>
-        <div class="meter-list" id="dash-meters">
-          <div style="color: var(--text-secondary); font-size: 11.5px;">畫布上尚無量測儀表或主動元件。</div>
-        </div>
-      </div>
-    </aside>
-  </div>
+<div class="card">
+  <button id="start" class="big">開始</button>
+  <div id="msg" class="msg"></div>
+  <div class="row"><label>總音量</label><input id="master" type="range" min="-40" max="0" step="1" value="-14"><output id="masterO"></output></div>
+  <div class="row"><label>輸出電平</label><div class="meter"><i id="lvl"></i></div><output id="lvlO">–</output></div>
+  <div class="btns"><button id="mute">按住＝暫時靜音（比較用）</button></div>
 </div>
 
+<div class="card">
+  <h2>麥克風頻譜（20–400 Hz）</h2>
+  <canvas id="cv" width="700" height="300"></canvas>
+</div>
+
+<div class="card">
+  <h2><input id="tonesOn" type="checkbox" checked> 嗡嗡聲反相抵銷</h2>
+  <p class="sub">只對頻率穩定的低頻嗡聲有效。每一軌：先調「相位」到最安靜，再調「強度」，來回兩三次。</p>
+  <div class="btns"><button id="detect">自動偵測嗡聲頻率</button></div>
+  <div id="tones"></div>
+</div>
+
+<div class="card">
+  <h2><input id="maskOn" type="checkbox" checked> 自適應遮蔽</h2>
+  <p class="sub">噪音變大時遮蔽聲自動跟著變大，安靜時退回底噪。</p>
+  <div class="row"><label>跟隨量</label><input id="amt" type="range" min="0" max="50" step="1" value="22"><output id="amtO"></output></div>
+  <div class="row"><label>底噪音量</label><input id="floor" type="range" min="-80" max="-25" step="1" value="-48"><output id="floorO"></output></div>
+  <div class="row"><label>底噪音色</label><input id="tilt" type="range" min="-8" max="0" step="0.5" value="-4"><output id="tiltO"></output></div>
+  <div class="row"><label>退回速度</label><input id="rel" type="range" min="0.5" max="10" step="0.5" value="3"><output id="relO"></output></div>
+</div>
+
+<div class="card">
+  <details open><summary>使用前必讀</summary>
+  <ul>
+    <li><b>請用耳機線</b>（WH-1000XM5 附的 3.5mm 線＋USB-C 轉接頭），耳機電源開著、降噪照常開。藍牙會讓 iOS 切到通話模式：音質變差、延遲大，反相抵銷會失效。</li>
+    <li>裝置放在固定位置（靠近你的頭、不要放在會震動的桌面），調好後不要移動，移動就要重調相位。</li>
+    <li>畫面要保持開啟，切到背景會停止。</li>
+    <li>音量夠蓋住即可，不要長時間開大聲。</li>
+  </ul></details>
+</div>
+
+<script type="text/plain" id="wk">
+const FC=[63,125,250,500,1000,2000,4000,8000].filter(f=>f<0.45*sampleRate);
+function bp(fc,q){const w=2*Math.PI*fc/sampleRate,al=Math.sin(w)/(2*q),a0=1+al;return{b0:al/a0,b2:-al/a0,a1:-2*Math.cos(w)/a0,a2:(1-al)/a0};}
+class BQ{constructor(c){this.c=c;this.z1=0;this.z2=0;}
+  run(x){const c=this.c,y=c.b0*x+this.z1;this.z1=-c.a1*y+this.z2;this.z2=c.b2*x-c.a2*y;return y;}}
+class P extends AudioWorkletProcessor{
+  constructor(){super();
+    const nb=FC.length;this.nb=nb;
+    this.an=FC.map(f=>new BQ(bp(f,1.41)));
+    this.nL=FC.map(f=>new BQ(bp(f,1.41)));this.nR=FC.map(f=>new BQ(bp(f,1.41)));
+    this.env=new Float64Array(nb);this.g=new Float64Array(nb);this.tg=new Float64Array(nb);
+    this.nrms=new Float64Array(nb);
+    for(let b=0;b<nb;b++){const q=new BQ(bp(FC[b],1.41));let s=0;const N=24000;
+      for(let i=0;i<N;i++){const y=q.run((Math.random()*2-1)*1.7320508);if(i>=4000)s+=y*y;}
+      this.nrms[b]=Math.sqrt(s/(N-4000))||1;}
+    this.tones=[0,1,2].map(()=>({on:false,f:50,f0:50,th:Math.PI,g:0,bw:1.5,track:true,ph:0,i1:0,q1:0,i2:0,q2:0,pI:0,pQ:0,amp:0}));
+    this.mask={on:false,amt:0,floor:0,tilt:-4,rel:3};
+    this.tonesOn=true;this.master=0;this.m=0;this.mute=false;this.cnt=0;this.pk=0;
+    this.port.onmessage=e=>this.set(e.data);
+  }
+  set(d){
+    if(d.tones)d.tones.forEach((s,k)=>{const t=this.tones[k];if(!t)return;
+      if(Math.abs(s.f-t.f0)>1e-6||s.on!==t.on){t.f=s.f;t.f0=s.f;t.i1=t.q1=t.i2=t.q2=0;}
+      t.on=s.on;t.th=s.th;t.g=s.g;t.bw=s.bw;t.track=s.track;});
+    if(d.mask)Object.assign(this.mask,d.mask);
+    if('tonesOn' in d)this.tonesOn=d.tonesOn;
+    if('master' in d)this.master=d.master;
+    if('mute' in d)this.mute=d.mute;
+  }
+  process(inputs,outputs){
+    const inp=inputs[0]&&inputs[0][0],o=outputs[0],L=o[0],R=o[1]||o[0],n=L.length,sr=sampleRate;
+    const mk=this.mask,nb=this.nb,TP=2*Math.PI;
+    const ka=1-Math.exp(-1/(0.03*sr)),kr=1-Math.exp(-4.6/(Math.max(0.2,mk.rel)*sr));
+    const emax=mk.amt>0?(0.12/mk.amt)*(0.12/mk.amt):1;
+    const cap=0.12;
+    for(let b=0;b<nb;b++){
+      const fl=mk.floor*Math.pow(FC[b]/250,mk.tilt/6.0206);
+      let a=Math.sqrt(mk.amt*mk.amt*this.env[b]+fl*fl);if(a>cap)a=cap;
+      this.tg[b]=mk.on?a/this.nrms[b]:0;
+    }
+    const mT=this.mute?0:this.master;
+    for(let i=0;i<n;i++){
+      const x=inp?inp[i]:0;let t=0;
+      for(let k=0;k<3;k++){const T=this.tones[k];if(!T.on)continue;
+        const a=1-Math.exp(-TP*T.bw/sr),c=Math.cos(T.ph),s=Math.sin(T.ph);
+        T.i1+=a*(x*c-T.i1);T.i2+=a*(T.i1-T.i2);
+        T.q1+=a*(-x*s-T.q1);T.q2+=a*(T.q1-T.q2);
+        let y=2*T.g*(T.i2*Math.cos(T.ph+T.th)-T.q2*Math.sin(T.ph+T.th));
+        if(y>0.25)y=0.25;else if(y<-0.25)y=-0.25;
+        if(this.tonesOn)t+=y;
+        T.ph+=TP*T.f/sr;if(T.ph>TP)T.ph-=TP;
+      }
+      let nl=0,nr=0;
+      const wl=(Math.random()*2-1)*1.7320508,wr=(Math.random()*2-1)*1.7320508;
+      for(let b=0;b<nb;b++){
+        const y=this.an[b].run(x),p=y*y,e=this.env[b];
+        let e2=e+(p-e)*(p>e?ka:kr);if(e2>emax)e2=emax;this.env[b]=e2;
+        const g=this.g[b]+=(this.tg[b]-this.g[b])*0.001;
+        if(g>1e-7){nl+=g*this.nL[b].run(wl);nr+=g*this.nR[b].run(wr);}
+      }
+      this.m+=(mT-this.m)*0.0005;
+      const l=Math.tanh((t+nl)*this.m/0.8)*0.8,r=Math.tanh((t+nr)*this.m/0.8)*0.8;
+      L[i]=l;R[i]=r;const al=Math.abs(l);if(al>this.pk)this.pk=al;
+    }
+    // 頻率追蹤（每個區塊一次）
+    const dt=n/sr;
+    for(let k=0;k<3;k++){const T=this.tones[k];if(!T.on)continue;
+      T.amp=2*Math.hypot(T.i2,T.q2);
+      if(T.track&&T.amp>2e-5&&(T.pI||T.pQ)){
+        const d=Math.atan2(T.q2*T.pI-T.i2*T.pQ,T.i2*T.pI+T.q2*T.pQ);
+        T.f+=0.02*d/(TP*dt);
+        if(T.f>T.f0+4)T.f=T.f0+4;else if(T.f<T.f0-4)T.f=T.f0-4;
+      }
+      T.pI=T.i2;T.pQ=T.q2;}
+    this.cnt+=n;
+    if(this.cnt>=4096){this.cnt=0;
+      this.port.postMessage({f:this.tones.map(t=>t.f),a:this.tones.map(t=>t.amp),pk:this.pk});this.pk=0;}
+    return true;
+  }
+}
+registerProcessor('anc-proc',P);
+</script>
+
 <script>
-/**
- * ============================================================================
- * 電子電路實驗室模擬器 (Electronic Circuit Lab Simulator)
- * 支援滑鼠與 iPad / 平板多點觸控 (Pointer Events + Pinch-to-Zoom)
- * ============================================================================
- */
-
-(function() {
-  'use strict';
-
-  // --- 常數定義 ---
-  const GRID_SIZE = 20;
-  const PIN_HIT_RADIUS_MOUSE = 11;
-  const PIN_HIT_RADIUS_TOUCH = 20;
-  const WIRE_HIT_DIST_MOUSE = 8;
-  const WIRE_HIT_DIST_TOUCH = 15;
-  const SIM_DT = 0.002; // 2ms 物理步長
-  const STEPS_PER_FRAME = 8;
-
-  const COMPONENT_DEFS = [
-    {
-      type: 'dc_source',
-      name: '直流電源供應器',
-      short: 'DC 電源',
-      desc: '0V - 24V 可調電壓',
-      pins: [{ id: 'p', label: '+', x: 40, y: 0 }, { id: 'n', label: '-', x: -40, y: 0 }],
-      defaultProps: { voltage: 9.0 }
-    },
-    {
-      type: 'ground',
-      name: '接地 (GND)',
-      short: 'GND',
-      desc: '0V 參考電位點',
-      pins: [{ id: 'g', label: 'GND', x: 0, y: -20 }],
-      defaultProps: {}
-    },
-    {
-      type: 'resistor',
-      name: '電阻 (Resistor)',
-      short: '電阻',
-      desc: '動態色碼環顯示',
-      pins: [{ id: 'a', label: '1', x: -40, y: 0 }, { id: 'b', label: '2', x: 40, y: 0 }],
-      defaultProps: { resistance: 330 }
-    },
-    {
-      type: 'capacitor',
-      name: '電容 (Capacitor)',
-      short: '電容',
-      desc: '支援充放電暫態',
-      pins: [{ id: 'a', label: '+', x: -40, y: 0 }, { id: 'b', label: '-', x: 40, y: 0 }],
-      defaultProps: { capacitance: 0.001 }
-    },
-    {
-      type: 'led',
-      name: 'LED 發光二極體',
-      short: 'LED',
-      desc: '含順向壓降與過流保護',
-      pins: [{ id: 'a', label: 'A(+)', x: -40, y: 0 }, { id: 'k', label: 'K(-)', x: 40, y: 0 }],
-      defaultProps: { vf: 2.0, maxCurrent: 0.03, color: '#ff3b30', burned: false }
-    },
-    {
-      type: 'switch',
-      name: '單刀開關 (SPST)',
-      short: '開關',
-      desc: '點擊切換開路/閉合',
-      pins: [{ id: 'a', label: '1', x: -40, y: 0 }, { id: 'b', label: '2', x: 40, y: 0 }],
-      defaultProps: { closed: true }
-    },
-    {
-      type: 'voltmeter',
-      name: '直流電壓表',
-      short: '電壓表',
-      desc: '高內阻並聯量測',
-      pins: [{ id: 'p', label: '+', x: -40, y: 0 }, { id: 'n', label: '-', x: 40, y: 0 }],
-      defaultProps: {}
-    },
-    {
-      type: 'ammeter',
-      name: '直流電流表',
-      short: '電流表',
-      desc: '零內阻串聯量測',
-      pins: [{ id: 'p', label: '+', x: -40, y: 0 }, { id: 'n', label: '-', x: 40, y: 0 }],
-      defaultProps: {}
-    }
-  ];
-
-  // 應用程式主狀態
-  const state = {
-    components: [],
-    wires: [],
-    nextId: 1,
-    selectedId: null,
-    selectedKind: null,
-    hoveredItem: null,
-    running: true,
-    simTime: 0,
-    shortCircuit: false,
-    noGroundWarning: false,
-    autoGndNode: null,
-    view: { x: 0, y: 0, zoom: 1.0 },
-    wiring: null,
-    draggingComp: null,
-    panning: null,      // { startX, startY, viewX, viewY, moved, pointerId, isBlankTap }
-    pinch: null,        // { dist, midX, midY }
-    spacePressed: false,
-    activePointers: new Map(), // pointerId -> { x, y, type }
-    nodeVoltages: {},
-    pinToNode: {},
-    wirePointToNode: {},
-    compResults: {},
-    wireCurrents: {},
-    scope: {
-      targetNodeKey: null,
-      targetLabel: '',
-      history: [],
-      maxPoints: 300
-    },
-    historyStack: [],
-    redoStack: []
-  };
-
-  // DOM 元素參照
-  const canvas = document.getElementById('circuit-canvas');
-  const ctx = canvas.getContext('2d');
-  const scopeCanvas = document.getElementById('scope-canvas');
-  const scopeCtx = scopeCanvas.getContext('2d');
-  const alertStack = document.getElementById('alert-stack');
-  const inspectorContent = document.getElementById('inspector-content');
-  const dashMeters = document.getElementById('dash-meters');
-  const dashTime = document.getElementById('dash-time');
-  const dashNodes = document.getElementById('dash-nodes');
-  const statusDot = document.getElementById('status-dot');
-  const statusText = document.getElementById('status-text');
-  const zoomBadge = document.getElementById('zoom-badge');
-  const btnRunPause = document.getElementById('btn-run-pause');
-  const btnUndo = document.getElementById('btn-undo');
-  const btnRedo = document.getElementById('btn-redo');
-
-  // --- 工具函式 ---
-  function snap(val) {
-    return Math.round(val / GRID_SIZE) * GRID_SIZE;
-  }
-
-  function screenToWorld(sx, sy) {
-    return {
-      x: (sx - state.view.x) / state.view.zoom,
-      y: (sy - state.view.y) / state.view.zoom
-    };
-  }
-
-  function getCompDef(type) {
-    return COMPONENT_DEFS.find(d => d.type === type);
-  }
-
-  function getPinWorldPos(comp, pinDef) {
-    const rad = (comp.rotation || 0) * Math.PI / 180;
-    const cos = Math.round(Math.cos(rad));
-    const sin = Math.round(Math.sin(rad));
-    return {
-      x: comp.x + pinDef.x * cos - pinDef.y * sin,
-      y: comp.y + pinDef.x * sin + pinDef.y * cos
-    };
-  }
-
-  function getCompPinsWorld(comp) {
-    const def = getCompDef(comp.type);
-    return def.pins.map(p => ({
-      ...p,
-      ...getPinWorldPos(comp, p),
-      compId: comp.id
-    }));
-  }
-
-  function formatUnit(val, unit, decimals = 2) {
-    if (val === undefined || val === null || isNaN(val)) return `-- ${unit}`;
-    const abs = Math.abs(val);
-    if (abs === 0) return `0.00 ${unit}`;
-    if (abs >= 1e6) return `${(val / 1e6).toFixed(decimals)} M${unit}`;
-    if (abs >= 1e3) return `${(val / 1e3).toFixed(decimals)} k${unit}`;
-    if (abs < 1e-3) return `${(val * 1e6).toFixed(1)} µ${unit}`;
-    if (abs < 1) return `${(val * 1e3).toFixed(decimals)} m${unit}`;
-    return `${val.toFixed(decimals)} ${unit}`;
-  }
-
-  function getResistorColorBands(ohms) {
-    const colors = [
-      '#1a1a1a', '#7b3f00', '#d9261c', '#ff7b00', '#ffd000',
-      '#2ea043', '#2563eb', '#9333ea', '#6b7280', '#f3f4f6'
-    ];
-    if (ohms < 1) return [colors[0], colors[0], colors[0], '#d4af37'];
-    const exp = Math.floor(Math.log10(ohms));
-    const mantissa = Math.round(ohms / Math.pow(10, exp - 1));
-    let d1 = Math.floor(mantissa / 10);
-    let d2 = mantissa % 10;
-    let mult = exp - 1;
-    if (d1 > 9) { d1 = 1; d2 = 0; mult += 1; }
-    const multColor = mult >= 0 && mult <= 9 ? colors[mult] : (mult === -1 ? '#d4af37' : '#c0c0c0');
-    return [colors[d1] || colors[0], colors[d2] || colors[0], multColor, '#d4af37'];
-  }
-
-  // --- Undo / Redo 歷史管理 ---
-  function cloneCircuitSnapshot() {
-    return JSON.stringify({
-      components: state.components,
-      wires: state.wires,
-      nextId: state.nextId
-    });
-  }
-
-  function pushHistory() {
-    state.historyStack.push(cloneCircuitSnapshot());
-    if (state.historyStack.length > 50) state.historyStack.shift();
-    state.redoStack = [];
-    updateHistoryButtons();
-  }
-
-  function restoreSnapshot(jsonStr) {
-    const data = JSON.parse(jsonStr);
-    state.components = data.components;
-    state.wires = data.wires;
-    state.nextId = data.nextId;
-    state.selectedId = null;
-    state.selectedKind = null;
-    state.shortCircuit = false;
-    state.wiring = null;
-    resetTransientState();
-    renderInspector();
-    solveAndSync();
-  }
-
-  function undo() {
-    if (state.historyStack.length === 0) return;
-    state.redoStack.push(cloneCircuitSnapshot());
-    const prev = state.historyStack.pop();
-    restoreSnapshot(prev);
-    updateHistoryButtons();
-  }
-
-  function redo() {
-    if (state.redoStack.length === 0) return;
-    state.historyStack.push(cloneCircuitSnapshot());
-    const next = state.redoStack.pop();
-    restoreSnapshot(next);
-    updateHistoryButtons();
-  }
-
-  function updateHistoryButtons() {
-    btnUndo.disabled = state.historyStack.length === 0;
-    btnRedo.disabled = state.redoStack.length === 0;
-  }
-
-  // --- 電路操作 ---
-  function createComponent(type, x, y, customProps = {}, rotation = 0) {
-    const def = getCompDef(type);
-    const id = state.nextId++;
-    const comp = {
-      id,
-      type,
-      name: `${def.short}_${id}`,
-      x: snap(x),
-      y: snap(y),
-      rotation,
-      props: { ...def.defaultProps, ...customProps },
-      state: { vPrev: 0 }
-    };
-    state.components.push(comp);
-    return comp;
-  }
-
-  function deleteSelected() {
-    if (!state.selectedId) return;
-    pushHistory();
-    if (state.selectedKind === 'component') {
-      state.components = state.components.filter(c => c.id !== state.selectedId);
-    } else if (state.selectedKind === 'wire') {
-      state.wires = state.wires.filter(w => w.id !== state.selectedId);
-    }
-    state.selectedId = null;
-    state.selectedKind = null;
-    state.shortCircuit = false;
-    renderInspector();
-    solveAndSync();
-  }
-
-  function rotateSelected() {
-    if (state.selectedKind !== 'component' || !state.selectedId) return;
-    const comp = state.components.find(c => c.id === state.selectedId);
-    if (!comp) return;
-    pushHistory();
-    comp.rotation = (comp.rotation + 90) % 360;
-    solveAndSync();
-  }
-
-  function resetTransientState() {
-    state.simTime = 0;
-    state.shortCircuit = false;
-    state.scope.history = [];
-    for (const c of state.components) {
-      if (c.type === 'capacitor') c.state = { vPrev: 0 };
-      if (c.type === 'led') c.props.burned = false;
-    }
-    if (!state.running) {
-      state.running = true;
-      updateRunButton();
-    }
-    solveAndSync();
-  }
-
-  // --- 正交轉折路徑計算 ---
-  function computeOrthogonalPath(p1, p2) {
-    if (p1.x === p2.x || p1.y === p2.y) {
-      return [{ x: p1.x, y: p1.y }, { x: p2.x, y: p2.y }];
-    }
-    return [
-      { x: p1.x, y: p1.y },
-      { x: p2.x, y: p1.y },
-      { x: p2.x, y: p2.y }
-    ];
-  }
-
-  function simplifyWirePoints(pts) {
-    if (pts.length <= 2) return pts;
-    const res = [pts[0]];
-    for (let i = 1; i < pts.length - 1; i++) {
-      const a = res[res.length - 1];
-      const b = pts[i];
-      const c = pts[i + 1];
-      if ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y)) continue;
-      if (a.x === b.x && a.y === b.y) continue;
-      res.push(b);
-    }
-    const last = pts[pts.length - 1];
-    if (res[res.length - 1].x !== last.x || res[res.length - 1].y !== last.y) {
-      res.push(last);
-    }
-    return res;
-  }
-
-  // --- Union-Find 節點合併與拓樸分析 ---
-  function buildElectricalTopology() {
-    const parent = new Map();
-    function find(k) {
-      if (!parent.has(k)) parent.set(k, k);
-      if (parent.get(k) !== k) parent.set(k, find(parent.get(k)));
-      return parent.get(k);
-    }
-    function union(a, b) {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra !== rb) parent.set(ra, rb);
-    }
-
-    const coordMap = new Map();
-    function registerCoord(x, y, key) {
-      const ck = `${x},${y}`;
-      if (!coordMap.has(ck)) coordMap.set(ck, []);
-      coordMap.get(ck).push(key);
-    }
-
-    for (const comp of state.components) {
-      const pins = getCompPinsWorld(comp);
-      for (const p of pins) {
-        const pk = `pin:${comp.id}:${p.id}`;
-        find(pk);
-        registerCoord(p.x, p.y, pk);
-      }
-    }
-
-    for (const wire of state.wires) {
-      if (wire.points.length < 2) continue;
-      for (let i = 0; i < wire.points.length; i++) {
-        const pt = wire.points[i];
-        const wk = `wpt:${pt.x},${pt.y}`;
-        find(wk);
-        registerCoord(pt.x, pt.y, wk);
-        if (i > 0) {
-          const prev = wire.points[i - 1];
-          union(`wpt:${prev.x},${prev.y}`, wk);
-        }
-      }
-    }
-
-    for (const [ck, keys] of coordMap.entries()) {
-      const [px, py] = ck.split(',').map(Number);
-      for (const wire of state.wires) {
-        for (let i = 1; i < wire.points.length; i++) {
-          const a = wire.points[i - 1];
-          const b = wire.points[i];
-          if (pointOnSegment(px, py, a.x, a.y, b.x, b.y)) {
-            union(keys[0], `wpt:${a.x},${a.y}`);
-          }
-        }
-      }
-    }
-
-    for (const keys of coordMap.values()) {
-      for (let i = 1; i < keys.length; i++) {
-        union(keys[0], keys[i]);
-      }
-    }
-
-    const rootToNode = new Map();
-    let gndRoot = null;
-    for (const comp of state.components) {
-      if (comp.type === 'ground') {
-        gndRoot = find(`pin:${comp.id}:g`);
-        break;
-      }
-    }
-
-    state.noGroundWarning = false;
-    state.autoGndNode = null;
-
-    if (!gndRoot && state.components.length > 0) {
-      state.noGroundWarning = true;
-      const vs = state.components.find(c => c.type === 'dc_source');
-      if (vs) {
-        gndRoot = find(`pin:${vs.id}:n`);
-      } else {
-        const firstComp = state.components[0];
-        const firstPin = getCompPinsWorld(firstComp)[0];
-        gndRoot = find(`pin:${firstComp.id}:${firstPin.id}`);
-      }
-      state.autoGndNode = gndRoot;
-    }
-
-    if (gndRoot) {
-      rootToNode.set(gndRoot, 0);
-      for (const comp of state.components) {
-        if (comp.type === 'ground') {
-          rootToNode.set(find(`pin:${comp.id}:g`), 0);
-        }
-      }
-    }
-
-    let nextNodeId = 1;
-    const pinToNode = {};
-    const wirePointToNode = {};
-
-    for (const comp of state.components) {
-      const pins = getCompPinsWorld(comp);
-      for (const p of pins) {
-        const r = find(`pin:${comp.id}:${p.id}`);
-        if (!rootToNode.has(r)) rootToNode.set(r, nextNodeId++);
-        pinToNode[`${comp.id}:${p.id}`] = rootToNode.get(r);
-      }
-    }
-
-    for (const wire of state.wires) {
-      for (const pt of wire.points) {
-        const r = find(`wpt:${pt.x},${pt.y}`);
-        if (!rootToNode.has(r)) rootToNode.set(r, nextNodeId++);
-        wirePointToNode[`${pt.x},${pt.y}`] = rootToNode.get(r);
-      }
-    }
-
-    state.pinToNode = pinToNode;
-    state.wirePointToNode = wirePointToNode;
-
-    return { numNodes: nextNodeId - 1, pinToNode, wirePointToNode };
-  }
-
-  function pointOnSegment(px, py, x1, y1, x2, y2) {
-    if (x1 === x2 && px === x1) return py >= Math.min(y1, y2) && py <= Math.max(y1, y2);
-    if (y1 === y2 && py === y1) return px >= Math.min(x1, x2) && px <= Math.max(x1, x2);
-    return false;
-  }
-
-  // --- 高斯消去法求解線性系統 ---
-  function solveLinearSystem(A, z) {
-    const n = z.length;
-    if (n === 0) return [];
-    const M = A.map((row, i) => [...row, z[i]]);
-
-    for (let col = 0; col < n; col++) {
-      let maxRow = col;
-      let maxVal = Math.abs(M[col][col]);
-      for (let row = col + 1; row < n; row++) {
-        const val = Math.abs(M[row][col]);
-        if (val > maxVal) {
-          maxVal = val;
-          maxRow = row;
-        }
-      }
-      if (maxVal < 1e-12) return null;
-      if (maxRow !== col) {
-        const tmp = M[col];
-        M[col] = M[maxRow];
-        M[maxRow] = tmp;
-      }
-      const pivot = M[col][col];
-      for (let row = col + 1; row < n; row++) {
-        const factor = M[row][col] / pivot;
-        if (factor === 0) continue;
-        for (let k = col; k <= n; k++) {
-          M[row][k] -= factor * M[col][k];
-        }
-      }
-    }
-
-    const x = new Array(n).fill(0);
-    for (let i = n - 1; i >= 0; i--) {
-      let sum = M[i][n];
-      for (let j = i + 1; j < n; j++) sum -= M[i][j] * x[j];
-      x[i] = sum / M[i][i];
-    }
-    return x;
-  }
-
-  // --- MNA 電路求解器 ---
-  function solveCircuitStep(dt, advanceTransient) {
-    if (state.components.length === 0) {
-      state.nodeVoltages = { 0: 0 };
-      state.compResults = {};
-      state.wireCurrents = {};
-      state.shortCircuit = false;
-      return;
-    }
-
-    const { numNodes, pinToNode } = buildElectricalTopology();
-
-    for (const comp of state.components) {
-      if (comp.type === 'dc_source') {
-        const np = pinToNode[`${comp.id}:p`];
-        const nn = pinToNode[`${comp.id}:n`];
-        if (np === nn && comp.props.voltage !== 0) {
-          triggerShortCircuit();
-          return;
-        }
-      }
-    }
-
-    const voltageSources = [];
-    for (const comp of state.components) {
-      if (comp.type === 'dc_source') {
-        voltageSources.push({
-          comp,
-          pNode: pinToNode[`${comp.id}:p`],
-          nNode: pinToNode[`${comp.id}:n`],
-          voltage: comp.props.voltage
-        });
-      } else if (comp.type === 'ammeter') {
-        voltageSources.push({
-          comp,
-          pNode: pinToNode[`${comp.id}:p`],
-          nNode: pinToNode[`${comp.id}:n`],
-          voltage: 0
-        });
-      }
-    }
-
-    const totalSize = numNodes + voltageSources.length;
-    if (totalSize === 0) {
-      state.nodeVoltages = { 0: 0 };
-      state.compResults = {};
-      state.wireCurrents = {};
-      return;
-    }
-
-    const leds = state.components.filter(c => c.type === 'led' && !c.props.burned);
-    const ledVd = new Map();
-    for (const led of leds) {
-      const prev = state.compResults[led.id];
-      ledVd.set(led.id, prev ? Math.min(prev.voltageDrop, led.props.vf + 0.2) : 0);
-    }
-
-    const maxIter = leds.length > 0 ? 25 : 1;
-    let solution = null;
-
-    for (let iter = 0; iter < maxIter; iter++) {
-      const A = Array.from({ length: totalSize }, () => new Array(totalSize).fill(0));
-      const z = new Array(totalSize).fill(0);
-
-      for (let i = 0; i < numNodes; i++) A[i][i] += 1e-11;
-
-      const addConductance = (n1, n2, g) => {
-        if (n1 > 0) A[n1 - 1][n1 - 1] += g;
-        if (n2 > 0) A[n2 - 1][n2 - 1] += g;
-        if (n1 > 0 && n2 > 0) {
-          A[n1 - 1][n2 - 1] -= g;
-          A[n2 - 1][n1 - 1] -= g;
-        }
-      };
-
-      const addCurrentSource = (fromNode, toNode, iVal) => {
-        if (fromNode > 0) z[fromNode - 1] -= iVal;
-        if (toNode > 0) z[toNode - 1] += iVal;
-      };
-
-      for (const comp of state.components) {
-        if (comp.type === 'resistor') {
-          addConductance(pinToNode[`${comp.id}:a`], pinToNode[`${comp.id}:b`], 1 / Math.max(1e-3, comp.props.resistance));
-        } else if (comp.type === 'switch') {
-          addConductance(pinToNode[`${comp.id}:a`], pinToNode[`${comp.id}:b`], comp.props.closed ? 1000 : 1e-9);
-        } else if (comp.type === 'voltmeter') {
-          addConductance(pinToNode[`${comp.id}:p`], pinToNode[`${comp.id}:n`], 1e-8);
-        } else if (comp.type === 'capacitor') {
-          const na = pinToNode[`${comp.id}:a`];
-          const nb = pinToNode[`${comp.id}:b`];
-          const C = Math.max(1e-9, comp.props.capacitance);
-          const geq = C / dt;
-          const vPrev = comp.state.vPrev || 0;
-          addConductance(na, nb, geq);
-          addCurrentSource(nb, na, geq * vPrev);
-        } else if (comp.type === 'led') {
-          const na = pinToNode[`${comp.id}:a`];
-          const nk = pinToNode[`${comp.id}:k`];
-          if (comp.props.burned) {
-            addConductance(na, nk, 1e-9);
-          } else {
-            const vd = ledVd.get(comp.id);
-            const { id, gd } = evalLedModel(vd, comp.props.vf);
-            addConductance(na, nk, gd);
-            addCurrentSource(na, nk, id - gd * vd);
-          }
-        }
-      }
-
-      voltageSources.forEach((vs, idx) => {
-        const k = numNodes + idx;
-        if (vs.pNode > 0) {
-          A[vs.pNode - 1][k] += 1;
-          A[k][vs.pNode - 1] += 1;
-        }
-        if (vs.nNode > 0) {
-          A[vs.nNode - 1][k] -= 1;
-          A[k][vs.nNode - 1] -= 1;
-        }
-        z[k] = vs.voltage;
-      });
-
-      solution = solveLinearSystem(A, z);
-      if (!solution) {
-        triggerShortCircuit();
-        return;
-      }
-
-      if (leds.length === 0) break;
-      let maxDiff = 0;
-      for (const led of leds) {
-        const na = pinToNode[`${led.id}:a`];
-        const nk = pinToNode[`${led.id}:k`];
-        const va = na === 0 ? 0 : solution[na - 1];
-        const vk = nk === 0 ? 0 : solution[nk - 1];
-        const newVd = va - vk;
-        const oldVd = ledVd.get(led.id);
-        const diff = newVd - oldVd;
-        maxDiff = Math.max(maxDiff, Math.abs(diff));
-        ledVd.set(led.id, oldVd + Math.max(-0.25, Math.min(0.25, diff)));
-      }
-      if (maxDiff < 1e-5) break;
-    }
-
-    const nodeVoltages = { 0: 0 };
-    for (let i = 1; i <= numNodes; i++) nodeVoltages[i] = solution[i - 1];
-    state.nodeVoltages = nodeVoltages;
-
-    for (let idx = 0; idx < voltageSources.length; idx++) {
-      const vs = voltageSources[idx];
-      if (vs.comp.type === 'dc_source' && Math.abs(solution[numNodes + idx]) > 50) {
-        triggerShortCircuit();
-        return;
-      }
-    }
-    state.shortCircuit = false;
-
-    const compResults = {};
-    const vsIndexMap = new Map();
-    voltageSources.forEach((vs, idx) => vsIndexMap.set(vs.comp.id, idx));
-
-    for (const comp of state.components) {
-      if (comp.type === 'ground') {
-        compResults[comp.id] = { current: 0, voltageDrop: 0, power: 0, vA: 0, vB: 0 };
-        continue;
-      }
-      const pins = getCompPinsWorld(comp);
-      const nA = pinToNode[`${comp.id}:${pins[0].id}`];
-      const nB = pinToNode[`${comp.id}:${pins[1].id}`];
-      const vA = nodeVoltages[nA] || 0;
-      const vB = nodeVoltages[nB] || 0;
-      const vDrop = vA - vB;
-      let current = 0;
-
-      if (comp.type === 'dc_source') {
-        current = -solution[numNodes + vsIndexMap.get(comp.id)];
-      } else if (comp.type === 'ammeter') {
-        current = solution[numNodes + vsIndexMap.get(comp.id)];
-      } else if (comp.type === 'resistor') {
-        current = vDrop / Math.max(1e-3, comp.props.resistance);
-      } else if (comp.type === 'switch') {
-        current = vDrop * (comp.props.closed ? 1000 : 1e-9);
-      } else if (comp.type === 'voltmeter') {
-        current = vDrop * 1e-8;
-      } else if (comp.type === 'capacitor') {
-        const C = Math.max(1e-9, comp.props.capacitance);
-        current = (C / dt) * (vDrop - (comp.state.vPrev || 0));
-        if (advanceTransient) comp.state.vPrev = vDrop;
-      } else if (comp.type === 'led') {
-        if (comp.props.burned) {
-          current = vDrop * 1e-9;
-        } else {
-          current = evalLedModel(vDrop, comp.props.vf).id;
-          if (advanceTransient && current > comp.props.maxCurrent * 1.05) {
-            comp.props.burned = true;
-          }
-        }
-      }
-
-      compResults[comp.id] = {
-        current,
-        voltageDrop: vDrop,
-        power: Math.abs(vDrop * current),
-        vA,
-        vB
-      };
-    }
-
-    state.compResults = compResults;
-    computeWireCurrents(pinToNode, compResults);
-  }
-
-  function evalLedModel(vd, vf) {
-    const Is = 1e-12;
-    const VtPrime = vf / 23.719;
-    const vLin = vf + 0.12;
-    const gLeak = 1e-9;
-    if (vd <= vLin) {
-      const expTerm = Math.exp(Math.max(-40, vd / VtPrime));
-      const id = Is * (expTerm - 1) + gLeak * vd;
-      const gd = Math.min(0.2, (Is / VtPrime) * expTerm + gLeak);
-      return { id, gd };
-    } else {
-      const expLin = Math.exp(vLin / VtPrime);
-      const idLin = Is * (expLin - 1) + gLeak * vLin;
-      const gdLin = Math.min(0.2, (Is / VtPrime) * expLin + gLeak);
-      return { id: idLin + gdLin * (vd - vLin), gd: gdLin };
-    }
-  }
-
-  function triggerShortCircuit() {
-    state.shortCircuit = true;
-    state.running = false;
-    updateRunButton();
-  }
-
-  function computeWireCurrents(pinToNode, compResults) {
-    state.wireCurrents = {};
-    const ptInject = new Map();
-    const addInject = (x, y, val) => {
-      const k = `${x},${y}`;
-      ptInject.set(k, (ptInject.get(k) || 0) + val);
-    };
-
-    for (const comp of state.components) {
-      const res = compResults[comp.id];
-      if (!res) continue;
-      const pins = getCompPinsWorld(comp);
-      if (pins.length === 2) {
-        addInject(pins[0].x, pins[0].y, -res.current);
-        addInject(pins[1].x, pins[1].y, res.current);
-      }
-    }
-
-    const adj = new Map();
-    for (const wire of state.wires) {
-      if (wire.points.length < 2) continue;
-      const pStart = wire.points[0];
-      const pEnd = wire.points[wire.points.length - 1];
-      const k1 = `${pStart.x},${pStart.y}`;
-      const k2 = `${pEnd.x},${pEnd.y}`;
-      if (!adj.has(k1)) adj.set(k1, []);
-      if (!adj.has(k2)) adj.set(k2, []);
-      adj.get(k1).push({ to: k2, wireId: wire.id, dir: 1 });
-      adj.get(k2).push({ to: k1, wireId: wire.id, dir: -1 });
-    }
-
-    const visited = new Set();
-    function dfs(u, parentWireId) {
-      visited.add(u);
-      let netOut = ptInject.get(u) || 0;
-      const neighbors = adj.get(u) || [];
-      for (const edge of neighbors) {
-        if (edge.wireId === parentWireId) continue;
-        if (!visited.has(edge.to)) {
-          const childFlow = dfs(edge.to, edge.wireId);
-          state.wireCurrents[edge.wireId] = edge.dir === 1 ? -childFlow : childFlow;
-          netOut += childFlow;
-        }
-      }
-      return netOut;
-    }
-
-    for (const key of adj.keys()) {
-      if (!visited.has(key)) dfs(key, null);
-    }
-  }
-
-  // --- 模擬主迴圈與示波器資料收集 ---
-  function solveAndSync() {
-    solveCircuitStep(SIM_DT, false);
-    updateUIReadouts();
-  }
-
-  function updateScopeSample() {
-    if (!state.scope.targetNodeKey) return;
-    let nodeId = null;
-    const key = state.scope.targetNodeKey;
-    if (key.startsWith('pin:')) {
-      nodeId = state.pinToNode[key.slice(4)];
-    } else if (key.startsWith('wpt:')) {
-      nodeId = state.wirePointToNode[key.slice(4)];
-    } else if (key.startsWith('comp:')) {
-      const cid = Number(key.slice(5));
-      const comp = state.components.find(c => c.id === cid);
-      if (comp) {
-        const pins = getCompPinsWorld(comp);
-        nodeId = state.pinToNode[`${comp.id}:${pins[0].id}`];
-      }
-    }
-    if (nodeId === undefined || nodeId === null) return;
-    const v = state.nodeVoltages[nodeId] || 0;
-    state.scope.history.push({ t: state.simTime, v });
-    if (state.scope.history.length > state.scope.maxPoints) {
-      state.scope.history.shift();
-    }
-  }
-
-  let lastFrameTime = performance.now();
-  let animPhase = 0;
-
-  function mainLoop(now) {
-    const elapsed = (now - lastFrameTime) / 1000;
-    lastFrameTime = now;
-    animPhase += elapsed;
-
-    if (state.running && !state.shortCircuit && state.components.length > 0) {
-      for (let i = 0; i < STEPS_PER_FRAME; i++) {
-        state.simTime += SIM_DT;
-        solveCircuitStep(SIM_DT, true);
-        if (state.shortCircuit) break;
-      }
-      updateScopeSample();
-      updateUIReadouts();
-    }
-
-    drawMainCanvas();
-    drawScopeCanvas();
-    requestAnimationFrame(mainLoop);
-  }
-
-  // --- UI 更新 ---
-  function updateRunButton() {
-    if (state.running) {
-      btnRunPause.textContent = '暫停模擬';
-      btnRunPause.className = 'primary';
-    } else {
-      btnRunPause.textContent = '繼續模擬';
-      btnRunPause.className = 'paused';
-    }
-  }
-
-  function updateUIReadouts() {
-    if (state.shortCircuit) {
-      statusDot.className = 'status-dot error';
-      statusText.textContent = '偵測到短路！已停止';
-    } else if (!state.running) {
-      statusDot.className = 'status-dot paused';
-      statusText.textContent = '模擬已暫停';
-    } else {
-      statusDot.className = 'status-dot';
-      statusText.textContent = '模擬執行中';
-    }
-
-    let alertsHtml = '';
-    if (state.shortCircuit) {
-      alertsHtml += `<div class="alert-banner alert-error">偵測到電源短路或無效迴路！為避免數值溢位，模擬已自動停止。請檢查線路後點擊「重設暫態/修復」。</div>`;
-    }
-    if (state.noGroundWarning && state.components.length > 0) {
-      alertsHtml += `<div class="alert-banner alert-warning">提示：電路中缺少接地 (GND) 元件，系統已自動指定一個暫時 0V 參考節點。建議加入 GND。</div>`;
-    }
-    const burnedLeds = state.components.filter(c => c.type === 'led' && c.props.burned);
-    if (burnedLeds.length > 0) {
-      alertsHtml += `<div class="alert-banner alert-error">警告：${burnedLeds.map(l => l.name).join(', ')} 電流過大已燒毀！請增加限流電阻後點擊「重設暫態/修復」。</div>`;
-    }
-    alertStack.innerHTML = alertsHtml;
-
-    dashTime.textContent = `${state.simTime.toFixed(2)} s`;
-    dashNodes.textContent = Object.keys(state.nodeVoltages).length;
-
-    const meters = state.components.filter(c =>
-      ['voltmeter', 'ammeter', 'dc_source', 'led', 'capacitor'].includes(c.type)
-    );
-    if (meters.length === 0) {
-      dashMeters.innerHTML = '<div style="color: var(--text-secondary); font-size: 11.5px;">畫布上尚無量測儀表或主動元件。</div>';
-    } else {
-      dashMeters.innerHTML = meters.map(m => {
-        const res = state.compResults[m.id] || { current: 0, voltageDrop: 0 };
-        let valStr = '--';
-        if (m.type === 'voltmeter') valStr = formatUnit(res.voltageDrop, 'V');
-        else if (m.type === 'ammeter') valStr = formatUnit(res.current, 'A');
-        else if (m.type === 'dc_source') valStr = `${m.props.voltage.toFixed(1)}V / ${formatUnit(res.current, 'A')}`;
-        else if (m.type === 'led') valStr = m.props.burned ? '已燒毀' : formatUnit(res.current, 'A');
-        else if (m.type === 'capacitor') valStr = formatUnit(res.voltageDrop, 'V');
-
-        return `<div class="meter-item" data-cid="${m.id}">
-          <span class="meter-name">${m.name}</span>
-          <span class="meter-val" style="${m.props.burned ? 'color: var(--danger);' : ''}">${valStr}</span>
-        </div>`;
-      }).join('');
-
-      dashMeters.querySelectorAll('.meter-item').forEach(el => {
-        el.onclick = () => {
-          state.selectedId = Number(el.dataset.cid);
-          state.selectedKind = 'component';
-          renderInspector();
-        };
-      });
-    }
-
-    const liveReadout = document.getElementById('inspector-live-readout');
-    if (liveReadout && state.selectedKind === 'component') {
-      const res = state.compResults[state.selectedId];
-      if (res) {
-        liveReadout.innerHTML = `
-          <div class="readout-item">
-            <span class="readout-label">兩端壓降 (V)</span>
-            <span class="readout-value">${formatUnit(res.voltageDrop, 'V')}</span>
-          </div>
-          <div class="readout-item">
-            <span class="readout-label">支路電流 (I)</span>
-            <span class="readout-value">${formatUnit(res.current, 'A')}</span>
-          </div>
-          <div class="readout-item">
-            <span class="readout-label">消耗/輸出功率</span>
-            <span class="readout-value">${formatUnit(res.power, 'W')}</span>
-          </div>
-          <div class="readout-item">
-            <span class="readout-label">腳位電位</span>
-            <span class="readout-value" style="font-size: 11px;">${res.vA.toFixed(2)}V / ${res.vB.toFixed(2)}V</span>
-          </div>
-        `;
-      }
-    }
-  }
-
-  function renderInspector() {
-    if (!state.selectedId) {
-      inspectorContent.innerHTML = `
-        <div class="inspector-empty">
-          尚未選取任何元件或導線。<br>點擊畫布上的元件可修改參數與查看即時電氣數值。
-        </div>`;
-      return;
-    }
-
-    if (state.selectedKind === 'wire') {
-      const wire = state.wires.find(w => w.id === state.selectedId);
-      if (!wire) return;
-      const pt = wire.points[0];
-      const nodeId = state.wirePointToNode[`${pt.x},${pt.y}`];
-      const v = state.nodeVoltages[nodeId] || 0;
-      inspectorContent.innerHTML = `
-        <div class="prop-row">
-          <div class="prop-label"><span>選取項目</span><span>導線 #${wire.id}</span></div>
-          <div class="readout-card">
-            <div class="readout-item">
-              <span class="readout-label">節點編號</span>
-              <span class="readout-value">Node ${nodeId}</span>
-            </div>
-            <div class="readout-item">
-              <span class="readout-label">節點電位</span>
-              <span class="readout-value">${formatUnit(v, 'V')}</span>
-            </div>
-          </div>
-        </div>
-        <div class="btn-row">
-          <button class="danger" id="insp-del">刪除導線 (Del)</button>
-        </div>
-      `;
-      document.getElementById('insp-del').onclick = deleteSelected;
-      return;
-    }
-
-    const comp = state.components.find(c => c.id === state.selectedId);
-    if (!comp) return;
-    const def = getCompDef(comp.type);
-
-    let propsHtml = `
-      <div class="prop-row">
-        <div class="prop-label"><span>元件類型</span><span style="color: var(--accent);">${def.name}</span></div>
-      </div>
-      <div class="prop-row">
-        <label class="prop-label">元件標籤</label>
-        <input type="text" id="insp-name" value="${comp.name}">
-      </div>
-    `;
-
-    if (comp.type === 'dc_source') {
-      propsHtml += `
-        <div class="prop-row">
-          <div class="prop-label"><span>輸出電壓 (V)</span><span>${comp.props.voltage.toFixed(1)} V</span></div>
-          <input type="range" id="insp-v-range" min="0" max="24" step="0.5" value="${comp.props.voltage}">
-          <input type="number" id="insp-v-num" min="0" max="100" step="0.5" value="${comp.props.voltage}">
-        </div>
-      `;
-    } else if (comp.type === 'resistor') {
-      propsHtml += `
-        <div class="prop-row">
-          <div class="prop-label"><span>電阻值 (Ω)</span><span>${formatUnit(comp.props.resistance, 'Ω', 1)}</span></div>
-          <input type="number" id="insp-r-num" min="1" max="10000000" step="10" value="${comp.props.resistance}">
-        </div>
-      `;
-    } else if (comp.type === 'capacitor') {
-      const uf = comp.props.capacitance * 1e6;
-      propsHtml += `
-        <div class="prop-row">
-          <div class="prop-label"><span>電容值 (µF)</span><span>${formatUnit(comp.props.capacitance, 'F', 1)}</span></div>
-          <input type="number" id="insp-c-num" min="1" max="1000000" step="100" value="${Math.round(uf)}">
-        </div>
-      `;
-    } else if (comp.type === 'led') {
-      propsHtml += `
-        <div class="prop-row">
-          <div class="prop-label"><span>順向導通電壓 (Vf)</span><span>${comp.props.vf} V</span></div>
-          <input type="number" id="insp-vf-num" min="1.2" max="5" step="0.1" value="${comp.props.vf}">
-        </div>
-        <div class="prop-row">
-          <div class="prop-label"><span>最大安全電流 (mA)</span><span>${(comp.props.maxCurrent * 1000).toFixed(0)} mA</span></div>
-          <input type="number" id="insp-imax-num" min="5" max="500" step="5" value="${Math.round(comp.props.maxCurrent * 1000)}">
-        </div>
-        ${comp.props.burned ? `<button id="insp-repair" class="primary" style="width:100%; justify-content:center; margin-bottom:8px;">修復燒毀的 LED</button>` : ''}
-      `;
-    } else if (comp.type === 'switch') {
-      propsHtml += `
-        <div class="prop-row">
-          <button id="insp-toggle-sw" class="${comp.props.closed ? 'primary' : ''}" style="width:100%; justify-content:center;">
-            目前狀態：${comp.props.closed ? '閉合 (Closed)' : '開路 (Open)'} — 點擊切換
-          </button>
-        </div>
-      `;
-    }
-
-    propsHtml += `
-      <div class="readout-card" id="inspector-live-readout"></div>
-      <div class="btn-row">
-        <button id="insp-rot">旋轉 90° (R)</button>
-        <button class="danger" id="insp-del">刪除 (Del)</button>
-      </div>
-    `;
-
-    inspectorContent.innerHTML = propsHtml;
-
-    document.getElementById('insp-name').onchange = (e) => {
-      pushHistory();
-      comp.name = e.target.value || def.short;
-      updateUIReadouts();
-    };
-    document.getElementById('insp-rot').onclick = rotateSelected;
-    document.getElementById('insp-del').onclick = deleteSelected;
-
-    if (comp.type === 'dc_source') {
-      const rng = document.getElementById('insp-v-range');
-      const num = document.getElementById('insp-v-num');
-      rng.oninput = (e) => {
-        comp.props.voltage = parseFloat(e.target.value) || 0;
-        num.value = comp.props.voltage;
-        solveAndSync();
-      };
-      num.onchange = (e) => {
-        pushHistory();
-        comp.props.voltage = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
-        rng.value = comp.props.voltage;
-        solveAndSync();
-      };
-    } else if (comp.type === 'resistor') {
-      document.getElementById('insp-r-num').onchange = (e) => {
-        pushHistory();
-        comp.props.resistance = Math.max(1, parseFloat(e.target.value) || 1);
-        renderInspector();
-        solveAndSync();
-      };
-    } else if (comp.type === 'capacitor') {
-      document.getElementById('insp-c-num').onchange = (e) => {
-        pushHistory();
-        const uf = Math.max(0.1, parseFloat(e.target.value) || 100);
-        comp.props.capacitance = uf * 1e-6;
-        renderInspector();
-        solveAndSync();
-      };
-    } else if (comp.type === 'led') {
-      document.getElementById('insp-vf-num').onchange = (e) => {
-        pushHistory();
-        comp.props.vf = Math.max(1.0, parseFloat(e.target.value) || 2.0);
-        solveAndSync();
-      };
-      document.getElementById('insp-imax-num').onchange = (e) => {
-        pushHistory();
-        comp.props.maxCurrent = Math.max(0.005, (parseFloat(e.target.value) || 30) / 1000);
-        solveAndSync();
-      };
-      const repBtn = document.getElementById('insp-repair');
-      if (repBtn) {
-        repBtn.onclick = () => {
-          comp.props.burned = false;
-          renderInspector();
-          solveAndSync();
-        };
-      }
-    } else if (comp.type === 'switch') {
-      document.getElementById('insp-toggle-sw').onclick = () => {
-        pushHistory();
-        comp.props.closed = !comp.props.closed;
-        renderInspector();
-        solveAndSync();
-      };
-    }
-
-    updateUIReadouts();
-  }
-
-  // --- 畫布繪製引擎 ---
-  function resizeCanvases() {
-    const container = document.getElementById('canvas-container');
-    canvas.width = container.clientWidth * window.devicePixelRatio;
-    canvas.height = container.clientHeight * window.devicePixelRatio;
-    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-
-    const scopeBody = scopeCanvas.parentElement;
-    scopeCanvas.width = scopeBody.clientWidth * window.devicePixelRatio;
-    scopeCanvas.height = scopeBody.clientHeight * window.devicePixelRatio;
-    scopeCtx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-  }
-
-  function drawMainCanvas() {
-    const w = canvas.width / window.devicePixelRatio;
-    const h = canvas.height / window.devicePixelRatio;
-    ctx.clearRect(0, 0, w, h);
-
-    ctx.save();
-    ctx.translate(state.view.x, state.view.y);
-    ctx.scale(state.view.zoom, state.view.zoom);
-
-    drawGrid(w, h);
-    for (const wire of state.wires) drawWire(wire);
-    drawJunctionDots();
-    for (const comp of state.components) drawComponent(comp);
-    if (state.wiring) drawWiringPreview();
-
-    ctx.restore();
-  }
-
-  function drawGrid(w, h) {
-    const topLeft = screenToWorld(0, 0);
-    const botRight = screenToWorld(w, h);
-    const startX = Math.floor(topLeft.x / GRID_SIZE) * GRID_SIZE;
-    const startY = Math.floor(topLeft.y / GRID_SIZE) * GRID_SIZE;
-
-    ctx.lineWidth = 1 / state.view.zoom;
-    for (let x = startX; x <= botRight.x; x += GRID_SIZE) {
-      const isMajor = x % (GRID_SIZE * 5) === 0;
-      ctx.strokeStyle = isMajor ? '#1f2630' : '#151a22';
-      ctx.beginPath();
-      ctx.moveTo(x, topLeft.y);
-      ctx.lineTo(x, botRight.y);
-      ctx.stroke();
-    }
-    for (let y = startY; y <= botRight.y; y += GRID_SIZE) {
-      const isMajor = y % (GRID_SIZE * 5) === 0;
-      ctx.strokeStyle = isMajor ? '#1f2630' : '#151a22';
-      ctx.beginPath();
-      ctx.moveTo(topLeft.x, y);
-      ctx.lineTo(botRight.x, y);
-      ctx.stroke();
-    }
-  }
-
-  function drawWire(wire) {
-    if (wire.points.length < 2) return;
-    const isSelected = state.selectedKind === 'wire' && state.selectedId === wire.id;
-    const isHovered = state.hoveredItem && state.hoveredItem.kind === 'wire' && state.hoveredItem.id === wire.id;
-
-    const pt = wire.points[0];
-    const nid = state.wirePointToNode[`${pt.x},${pt.y}`];
-    const v = state.nodeVoltages[nid] || 0;
-    let baseColor = '#4b5563';
-    if (nid === 0) baseColor = '#3b82f6';
-    else if (v > 0.5) baseColor = '#10b981';
-
-    if (isSelected) baseColor = '#38bdf8';
-    else if (isHovered) baseColor = '#93c5fd';
-
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = baseColor;
-    ctx.lineWidth = isSelected ? 4 : 3;
-
-    ctx.beginPath();
-    ctx.moveTo(wire.points[0].x, wire.points[0].y);
-    for (let i = 1; i < wire.points.length; i++) {
-      ctx.lineTo(wire.points[i].x, wire.points[i].y);
-    }
-    ctx.stroke();
-
-    const current = state.wireCurrents[wire.id] || 0;
-    if (state.running && !state.shortCircuit && Math.abs(current) > 1e-6) {
-      drawCurrentParticles(wire.points, current);
-    }
-    ctx.restore();
-  }
-
-  function drawCurrentParticles(points, current) {
-    const segs = [];
-    let totalLen = 0;
-    for (let i = 1; i < points.length; i++) {
-      const dx = points[i].x - points[i - 1].x;
-      const dy = points[i].y - points[i - 1].y;
-      const len = Math.hypot(dx, dy);
-      if (len > 0) {
-        segs.push({ x1: points[i - 1].x, y1: points[i - 1].y, dx, dy, len });
-        totalLen += len;
-      }
-    }
-    if (totalLen === 0) return;
-
-    const absI = Math.abs(current);
-    const speed = Math.min(180, 25 + Math.log10(1 + absI * 1000) * 65);
-    const spacing = 36;
-    const dir = current >= 0 ? 1 : -1;
-    const offset = ((animPhase * speed * dir) % spacing + spacing) % spacing;
-
-    ctx.fillStyle = '#fde047';
-    ctx.shadowColor = '#facc15';
-    ctx.shadowBlur = 8;
-
-    for (let dist = offset; dist < totalLen; dist += spacing) {
-      let acc = 0;
-      for (const s of segs) {
-        if (acc + s.len >= dist) {
-          const t = (dist - acc) / s.len;
-          ctx.beginPath();
-          ctx.arc(s.x1 + s.dx * t, s.y1 + s.dy * t, 3, 0, Math.PI * 2);
-          ctx.fill();
-          break;
-        }
-        acc += s.len;
-      }
-    }
-  }
-
-  function drawJunctionDots() {
-    const countMap = new Map();
-    const inc = (x, y) => {
-      const k = `${x},${y}`;
-      countMap.set(k, (countMap.get(k) || 0) + 1);
-    };
-    for (const w of state.wires) {
-      if (w.points.length < 2) continue;
-      inc(w.points[0].x, w.points[0].y);
-      inc(w.points[w.points.length - 1].x, w.points[w.points.length - 1].y);
-    }
-    ctx.fillStyle = '#38bdf8';
-    for (const [k, cnt] of countMap.entries()) {
-      if (cnt >= 3) {
-        const [x, y] = k.split(',').map(Number);
-        ctx.beginPath();
-        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-
-  function drawComponent(comp) {
-    const isSelected = state.selectedKind === 'component' && state.selectedId === comp.id;
-    const isHovered = state.hoveredItem && state.hoveredItem.kind === 'component' && state.hoveredItem.id === comp.id;
-    const res = state.compResults[comp.id] || { current: 0, voltageDrop: 0 };
-
-    ctx.save();
-    ctx.translate(comp.x, comp.y);
-    ctx.rotate((comp.rotation || 0) * Math.PI / 180);
-
-    if (isSelected || isHovered) {
-      ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 3]);
-      ctx.strokeRect(-42, -26, 84, 52);
-      ctx.setLineDash([]);
-    }
-
-    ctx.strokeStyle = '#e6edf3';
-    ctx.fillStyle = '#161b22';
-    ctx.lineWidth = 2;
-
-    if (comp.type === 'dc_source') {
-      ctx.beginPath();
-      ctx.moveTo(-40, 0); ctx.lineTo(-10, 0);
-      ctx.moveTo(40, 0); ctx.lineTo(10, 0);
-      ctx.moveTo(10, -16); ctx.lineTo(10, 16);
-      ctx.stroke();
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(-10, -9); ctx.lineTo(-10, 9);
-      ctx.stroke();
-      ctx.fillStyle = '#f85149';
-      ctx.font = 'bold 12px monospace';
-      ctx.fillText('+', 16, -8);
-      ctx.fillStyle = '#58a6ff';
-      ctx.fillText('-', -24, -8);
-    } else if (comp.type === 'ground') {
-      ctx.beginPath();
-      ctx.moveTo(0, -20); ctx.lineTo(0, 0);
-      ctx.moveTo(-14, 0); ctx.lineTo(14, 0);
-      ctx.moveTo(-9, 6); ctx.lineTo(9, 6);
-      ctx.moveTo(-4, 12); ctx.lineTo(4, 12);
-      ctx.stroke();
-    } else if (comp.type === 'resistor') {
-      ctx.beginPath();
-      ctx.moveTo(-40, 0); ctx.lineTo(-22, 0);
-      ctx.moveTo(22, 0); ctx.lineTo(40, 0);
-      ctx.stroke();
-      ctx.fillStyle = '#d2b48c';
-      ctx.strokeStyle = '#a1887f';
-      ctx.beginPath();
-      ctx.roundRect(-22, -9, 44, 18, 4);
-      ctx.fill();
-      ctx.stroke();
-      const bands = getResistorColorBands(comp.props.resistance);
-      const bx = [-14, -6, 2, 12];
-      bands.forEach((col, idx) => {
-        ctx.fillStyle = col;
-        ctx.fillRect(bx[idx], -9, 4, 18);
-      });
-    } else if (comp.type === 'capacitor') {
-      ctx.beginPath();
-      ctx.moveTo(-40, 0); ctx.lineTo(-5, 0);
-      ctx.moveTo(5, 0); ctx.lineTo(40, 0);
-      ctx.moveTo(-5, -14); ctx.lineTo(-5, 14);
-      ctx.moveTo(5, -14); ctx.lineTo(5, 14);
-      ctx.stroke();
-    } else if (comp.type === 'led') {
-      ctx.beginPath();
-      ctx.moveTo(-40, 0); ctx.lineTo(-10, 0);
-      ctx.moveTo(10, 0); ctx.lineTo(40, 0);
-      ctx.stroke();
-
-      const brightness = (!comp.props.burned && res.current > 0.0005)
-        ? Math.min(1, res.current / 0.02)
-        : 0;
-      if (brightness > 0) {
-        const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
-        grad.addColorStop(0, `rgba(255, 70, 50, ${0.85 * brightness})`);
-        grad.addColorStop(1, 'rgba(255, 70, 50, 0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(0, 0, 28, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = comp.props.burned ? '#27272a' : (brightness > 0.05 ? '#ff5252' : '#991b1b');
-      ctx.strokeStyle = '#e6edf3';
-      ctx.beginPath();
-      ctx.moveTo(-10, -11);
-      ctx.lineTo(10, 0);
-      ctx.lineTo(-10, 11);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(10, -11); ctx.lineTo(10, 11);
-      ctx.stroke();
-
-      if (comp.props.burned) {
-        ctx.strokeStyle = '#f85149';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(-12, -12); ctx.lineTo(12, 12);
-        ctx.moveTo(12, -12); ctx.lineTo(-12, 12);
-        ctx.stroke();
-      }
-    } else if (comp.type === 'switch') {
-      ctx.beginPath();
-      ctx.moveTo(-40, 0); ctx.lineTo(-16, 0);
-      ctx.moveTo(16, 0); ctx.lineTo(40, 0);
-      ctx.stroke();
-      ctx.fillStyle = '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(-16, 0, 3.5, 0, Math.PI * 2);
-      ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = comp.props.closed ? '#2ea043' : '#f59e0b';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(-16, 0);
-      if (comp.props.closed) ctx.lineTo(16, 0);
-      else ctx.lineTo(13, -15);
-      ctx.stroke();
-    } else if (comp.type === 'voltmeter' || comp.type === 'ammeter') {
-      ctx.beginPath();
-      ctx.moveTo(-40, 0); ctx.lineTo(-18, 0);
-      ctx.moveTo(18, 0); ctx.lineTo(40, 0);
-      ctx.stroke();
-      ctx.fillStyle = '#0d1117';
-      ctx.strokeStyle = comp.type === 'voltmeter' ? '#38bdf8' : '#a855f7';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 18, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#e6edf3';
-      ctx.font = 'bold 13px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(comp.type === 'voltmeter' ? 'V' : 'A', 0, 1);
-    }
-
-    ctx.save();
-    ctx.rotate(-((comp.rotation || 0) * Math.PI / 180));
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-
-    let labelText = '';
-    if (comp.type === 'dc_source') labelText = `${comp.props.voltage}V`;
-    else if (comp.type === 'resistor') labelText = formatUnit(comp.props.resistance, 'Ω', 0);
-    else if (comp.type === 'capacitor') labelText = `${formatUnit(comp.props.capacitance, 'F', 0)} (${formatUnit(res.voltageDrop, 'V', 1)})`;
-    else if (comp.type === 'voltmeter') labelText = formatUnit(res.voltageDrop, 'V', 2);
-    else if (comp.type === 'ammeter') labelText = formatUnit(res.current, 'A', 2);
-    else if (comp.type === 'led') labelText = comp.props.burned ? 'BURNED!' : formatUnit(res.current, 'A', 1);
-    else if (comp.type === 'switch') labelText = comp.props.closed ? 'ON' : 'OFF';
-
-    if (labelText) {
-      ctx.fillStyle = comp.props.burned ? '#f85149' : '#cbd5e1';
-      ctx.fillText(labelText, 0, -22);
-    }
-    ctx.restore();
-    ctx.restore();
-
-    const pins = getCompPinsWorld(comp);
-    for (const p of pins) {
-      const isPinHovered = state.hoveredItem && state.hoveredItem.kind === 'pin'
-        && state.hoveredItem.compId === comp.id && state.hoveredItem.pinId === p.id;
-      ctx.fillStyle = isPinHovered ? '#fde047' : '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, isPinHovered ? 5.5 : 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  function drawWiringPreview() {
-    const w = state.wiring;
-    const lastPt = w.points[w.points.length - 1];
-    const seg = computeOrthogonalPath(lastPt, w.mouseWorld);
-    const fullPts = [...w.points, ...seg.slice(1)];
-
-    ctx.save();
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(fullPts[0].x, fullPts[0].y);
-    for (let i = 1; i < fullPts.length; i++) {
-      ctx.lineTo(fullPts[i].x, fullPts[i].y);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // --- 示波器繪製 ---
-  function drawScopeCanvas() {
-    const w = scopeCanvas.width / window.devicePixelRatio;
-    const h = scopeCanvas.height / window.devicePixelRatio;
-    scopeCtx.clearRect(0, 0, w, h);
-
-    scopeCtx.strokeStyle = '#16202a';
-    scopeCtx.lineWidth = 1;
-    const cols = 10, rows = 4;
-    for (let i = 1; i < cols; i++) {
-      const x = (w / cols) * i;
-      scopeCtx.beginPath(); scopeCtx.moveTo(x, 0); scopeCtx.lineTo(x, h); scopeCtx.stroke();
-    }
-    for (let j = 1; j < rows; j++) {
-      const y = (h / rows) * j;
-      scopeCtx.beginPath(); scopeCtx.moveTo(0, y); scopeCtx.lineTo(w, y); scopeCtx.stroke();
-    }
-
-    const hist = state.scope.history;
-    if (hist.length < 2) {
-      scopeCtx.fillStyle = '#484f58';
-      scopeCtx.font = '12px sans-serif';
-      scopeCtx.textAlign = 'center';
-      scopeCtx.fillText(
-        state.scope.targetNodeKey ? '等待訊號採樣中...' : '請點擊畫布上的任一導線、腳位或元件以連接示波器探棒',
-        w / 2, h / 2
-      );
-      return;
-    }
-
-    let minV = Infinity, maxV = -Infinity;
-    for (const pt of hist) {
-      if (pt.v < minV) minV = pt.v;
-      if (pt.v > maxV) maxV = pt.v;
-    }
-    const nowV = hist[hist.length - 1].v;
-    document.getElementById('scope-val-now').textContent = `${nowV.toFixed(3)} V`;
-    document.getElementById('scope-val-max').textContent = `${maxV.toFixed(2)} V`;
-    document.getElementById('scope-val-min').textContent = `${minV.toFixed(2)} V`;
-
-    let yMin = Math.min(0, minV);
-    let yMax = Math.max(5, maxV);
-    if (yMax - yMin < 1) yMax = yMin + 1;
-    const pad = (yMax - yMin) * 0.15;
-    yMin -= pad;
-    yMax += pad;
-
-    const mapY = (v) => h - ((v - yMin) / (yMax - yMin)) * h;
-
-    const y0 = mapY(0);
-    if (y0 >= 0 && y0 <= h) {
-      scopeCtx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-      scopeCtx.setLineDash([4, 4]);
-      scopeCtx.beginPath();
-      scopeCtx.moveTo(0, y0);
-      scopeCtx.lineTo(w, y0);
-      scopeCtx.stroke();
-      scopeCtx.setLineDash([]);
-    }
-
-    scopeCtx.strokeStyle = '#38bdf8';
-    scopeCtx.lineWidth = 2;
-    scopeCtx.shadowColor = '#38bdf8';
-    scopeCtx.shadowBlur = 6;
-    scopeCtx.beginPath();
-    for (let i = 0; i < hist.length; i++) {
-      const x = (i / (state.scope.maxPoints - 1)) * w;
-      const y = mapY(hist[i].v);
-      if (i === 0) scopeCtx.moveTo(x, y);
-      else scopeCtx.lineTo(x, y);
-    }
-    scopeCtx.stroke();
-    scopeCtx.shadowBlur = 0;
-
-    scopeCtx.fillStyle = '#6e7681';
-    scopeCtx.font = '10px monospace';
-    scopeCtx.textAlign = 'left';
-    scopeCtx.fillText(`${yMax.toFixed(1)}V`, 6, 12);
-    scopeCtx.fillText(`${yMin.toFixed(1)}V`, 6, h - 6);
-  }
-
-  // --- Pointer Events 統一互動處理 (滑鼠 + iPad 觸控 + 雙指縮放) ---
-  function hitTest(wx, wy, isTouch = false) {
-    const pinR = (isTouch ? PIN_HIT_RADIUS_TOUCH : PIN_HIT_RADIUS_MOUSE) / state.view.zoom;
-    const wireR = (isTouch ? WIRE_HIT_DIST_TOUCH : WIRE_HIT_DIST_MOUSE) / state.view.zoom;
-
-    for (const comp of state.components) {
-      const pins = getCompPinsWorld(comp);
-      for (const p of pins) {
-        if (Math.hypot(wx - p.x, wy - p.y) <= pinR) {
-          return { kind: 'pin', compId: comp.id, pinId: p.id, x: p.x, y: p.y };
-        }
-      }
-    }
-    for (let i = state.components.length - 1; i >= 0; i--) {
-      const c = state.components[i];
-      if (Math.abs(wx - c.x) <= 38 && Math.abs(wy - c.y) <= 26) {
-        return { kind: 'component', id: c.id };
-      }
-    }
-    for (let i = state.wires.length - 1; i >= 0; i--) {
-      const w = state.wires[i];
-      for (let j = 1; j < w.points.length; j++) {
-        const a = w.points[j - 1];
-        const b = w.points[j];
-        if (distToSegment(wx, wy, a.x, a.y, b.x, b.y) <= wireR) {
-          return { kind: 'wire', id: w.id };
-        }
-      }
-    }
-    return null;
-  }
-
-  function distToSegment(px, py, x1, y1, x2, y2) {
-    const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
-    if (l2 === 0) return Math.hypot(px - x1, py - y1);
-    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
-    t = Math.max(0, Math.min(1, t));
-    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
-  }
-
-  function setScopeTarget(key, label) {
-    if (state.scope.targetNodeKey !== key) {
-      state.scope.targetNodeKey = key;
-      state.scope.targetLabel = label;
-      state.scope.history = [];
-      document.getElementById('scope-target-label').textContent = `探測中：${label}`;
-    }
-  }
-
-  function finishWiring(endPt) {
-    const w = state.wiring;
-    const last = w.points[w.points.length - 1];
-    const seg = computeOrthogonalPath(last, endPt);
-    const fullPts = simplifyWirePoints([...w.points, ...seg.slice(1)]);
-    state.wiring = null;
-    if (fullPts.length >= 2) {
-      pushHistory();
-      state.wires.push({ id: state.nextId++, points: fullPts });
-      solveAndSync();
-    }
-  }
-
-  function getTwoPointerMetrics() {
-    const pts = Array.from(state.activePointers.values());
-    const dx = pts[1].x - pts[0].x;
-    const dy = pts[1].y - pts[0].y;
-    return {
-      dist: Math.hypot(dx, dy),
-      midX: (pts[0].x + pts[1].x) / 2,
-      midY: (pts[0].y + pts[1].y) / 2
-    };
-  }
-
-  canvas.addEventListener('pointerdown', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    const isTouch = e.pointerType === 'touch';
-
-    state.activePointers.set(e.pointerId, { x: sx, y: sy, type: e.pointerType });
-    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-
-    // 雙指觸控：啟動雙指縮放與平移，中止單指操作
-    if (state.activePointers.size === 2) {
-      state.draggingComp = null;
-      state.panning = null;
-      state.pinch = getTwoPointerMetrics();
-      return;
-    }
-
-    if (state.activePointers.size > 2) return;
-
-    const world = screenToWorld(sx, sy);
-
-    // 滑鼠中鍵或空白鍵 + 左鍵直接平移
-    if (e.button === 1 || (e.button === 0 && state.spacePressed)) {
-      state.panning = {
-        startX: sx, startY: sy,
-        viewX: state.view.x, viewY: state.view.y,
-        moved: false, pointerId: e.pointerId, isBlankTap: false
-      };
-      canvas.style.cursor = 'grabbing';
-      return;
-    }
-
-    if (e.button !== 0 && !isTouch) return;
-
-    const hit = hitTest(world.x, world.y, isTouch);
-
-    // 正在拉線中
-    if (state.wiring) {
-      if (hit && hit.kind === 'pin') {
-        finishWiring({ x: hit.x, y: hit.y });
-      } else if (hit && hit.kind === 'wire') {
-        finishWiring({ x: snap(world.x), y: snap(world.y) });
-      } else {
-        const sn = { x: snap(world.x), y: snap(world.y) };
-        const last = state.wiring.points[state.wiring.points.length - 1];
-        const seg = computeOrthogonalPath(last, sn);
-        state.wiring.points.push(...seg.slice(1));
-        state.wiring.mouseWorld = sn;
-      }
-      return;
-    }
-
-    if (hit && hit.kind === 'pin') {
-      setScopeTarget(`pin:${hit.compId}:${hit.pinId}`, `元件#${hit.compId} 腳位(${hit.pinId})`);
-      state.wiring = {
-        points: [{ x: hit.x, y: hit.y }],
-        mouseWorld: { x: hit.x, y: hit.y }
-      };
-      return;
-    }
-
-    if (hit && hit.kind === 'component') {
-      const comp = state.components.find(c => c.id === hit.id);
-      state.selectedId = comp.id;
-      state.selectedKind = 'component';
-      setScopeTarget(`comp:${comp.id}`, `${comp.name}`);
-      state.draggingComp = {
-        id: comp.id,
-        offsetX: world.x - comp.x,
-        offsetY: world.y - comp.y,
-        startScreenX: sx,
-        startScreenY: sy,
-        moved: false,
-        pointerId: e.pointerId,
-        hitCenter: Math.hypot(world.x - comp.x, world.y - comp.y) < 22
-      };
-      renderInspector();
-      return;
-    }
-
-    if (hit && hit.kind === 'wire') {
-      state.selectedId = hit.id;
-      state.selectedKind = 'wire';
-      const w = state.wires.find(wr => wr.id === hit.id);
-      if (w) setScopeTarget(`wpt:${w.points[0].x},${w.points[0].y}`, `導線 #${w.id}`);
-      renderInspector();
-      return;
-    }
-
-    // 點擊空白處：若移動超過 5px 則平移畫布，若未移動放開則取消選取
-    state.panning = {
-      startX: sx, startY: sy,
-      viewX: state.view.x, viewY: state.view.y,
-      moved: false, pointerId: e.pointerId, isBlankTap: true
-    };
+'use strict';
+const $=id=>document.getElementById(id);
+const KEY='anc-settings-v1';
+let S={master:-14,tonesOn:true,maskOn:true,amt:22,floor:-48,tilt:-4,rel:3,
+  tones:[{on:false,f:50,ph:180,g:20,bw:1.5,track:true},{on:false,f:60,ph:180,g:20,bw:1.5,track:true},{on:false,f:120,ph:180,g:20,bw:1.5,track:true}]};
+try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.tones&&j.tones.length===3)S=Object.assign(S,j);}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+let ctx=null,node=null,stream=null,analyser=null,wake=null,fbuf=null,live=[null,null,null],raf=0;
+const db2lin=d=>Math.pow(10,d/20);
+
+/* ---------- UI ---------- */
+const tonesEl=$('tones');
+S.tones.forEach((t,k)=>{
+  const d=document.createElement('div');d.className='tone';
+  d.innerHTML=`<div class="head"><input type="checkbox" id="t${k}on"><b>第 ${k+1} 軌</b>
+    <input type="number" id="t${k}f" min="25" max="400" step="0.1" inputmode="decimal"> Hz
+    <span class="stat" id="t${k}s">–</span></div>
+    <div class="row"><label>相位</label><input type="range" id="t${k}ph" min="0" max="360" step="1"><output id="t${k}phO"></output></div>
+    <div class="row"><label>強度</label><input type="range" id="t${k}g" min="0" max="60" step="0.5"><output id="t${k}gO"></output></div>
+    <div class="row"><label>頻寬</label><input type="range" id="t${k}bw" min="0.3" max="6" step="0.1"><output id="t${k}bwO"></output></div>
+    <div class="row"><label>自動跟頻</label><input type="checkbox" id="t${k}tr"></div>`;
+  tonesEl.appendChild(d);
+});
+function paint(){
+  $('master').value=S.master;$('masterO').textContent=S.master+' dB';
+  $('tonesOn').checked=S.tonesOn;$('maskOn').checked=S.maskOn;
+  $('amt').value=S.amt;$('amtO').textContent='+'+S.amt+' dB';
+  $('floor').value=S.floor;$('floorO').textContent=S.floor+' dB';
+  $('tilt').value=S.tilt;$('tiltO').textContent=(S.tilt<=-5?'低沉':S.tilt>=-2?'明亮':'中性');
+  $('rel').value=S.rel;$('relO').textContent=S.rel+' 秒';
+  S.tones.forEach((t,k)=>{
+    $(`t${k}on`).checked=t.on;$(`t${k}f`).value=t.f;$(`t${k}tr`).checked=t.track;
+    $(`t${k}ph`).value=t.ph;$(`t${k}phO`).textContent=t.ph+'°';
+    $(`t${k}g`).value=t.g;$(`t${k}gO`).textContent='+'+t.g+' dB';
+    $(`t${k}bw`).value=t.bw;$(`t${k}bwO`).textContent='±'+t.bw+' Hz';
   });
-
-  canvas.addEventListener('pointermove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    const isTouch = e.pointerType === 'touch';
-
-    if (state.activePointers.has(e.pointerId)) {
-      state.activePointers.set(e.pointerId, { x: sx, y: sy, type: e.pointerType });
-    }
-
-    // 雙指縮放與平移
-    if (state.activePointers.size === 2 && state.pinch) {
-      const cur = getTwoPointerMetrics();
-      if (state.pinch.dist > 10 && cur.dist > 10) {
-        const scaleFactor = cur.dist / state.pinch.dist;
-        const newZoom = Math.max(0.35, Math.min(2.5, state.view.zoom * scaleFactor));
-        const actualFactor = newZoom / state.view.zoom;
-
-        // 先依兩指中心位移平移，再以新中心縮放
-        state.view.x += cur.midX - state.pinch.midX;
-        state.view.y += cur.midY - state.pinch.midY;
-        state.view.x = cur.midX - (cur.midX - state.view.x) * actualFactor;
-        state.view.y = cur.midY - (cur.midY - state.view.y) * actualFactor;
-        state.view.zoom = newZoom;
-        zoomBadge.textContent = `${Math.round(newZoom * 100)}%`;
-      }
-      state.pinch = cur;
-      return;
-    }
-
-    // 單指或滑鼠平移
-    if (state.panning && state.panning.pointerId === e.pointerId) {
-      const dx = sx - state.panning.startX;
-      const dy = sy - state.panning.startY;
-      if (!state.panning.moved && Math.hypot(dx, dy) > 5) {
-        state.panning.moved = true;
-        canvas.style.cursor = 'grabbing';
-      }
-      if (state.panning.moved) {
-        state.view.x = state.panning.viewX + dx;
-        state.view.y = state.panning.viewY + dy;
-      }
-      return;
-    }
-
-    const world = screenToWorld(sx, sy);
-
-    // 拖曳元件
-    if (state.draggingComp && state.draggingComp.pointerId === e.pointerId) {
-      const comp = state.components.find(c => c.id === state.draggingComp.id);
-      if (comp) {
-        const nx = snap(world.x - state.draggingComp.offsetX);
-        const ny = snap(world.y - state.draggingComp.offsetY);
-        if (nx !== comp.x || ny !== comp.y) {
-          if (!state.draggingComp.moved) {
-            pushHistory();
-            state.draggingComp.moved = true;
-          }
-          comp.x = nx;
-          comp.y = ny;
-          solveAndSync();
-        }
-      }
-      return;
-    }
-
-    // 拉線即時預覽
-    if (state.wiring) {
-      const hit = hitTest(world.x, world.y, isTouch);
-      if (hit && hit.kind === 'pin') {
-        state.wiring.mouseWorld = { x: hit.x, y: hit.y };
-      } else {
-        state.wiring.mouseWorld = { x: snap(world.x), y: snap(world.y) };
-      }
-    }
-
-    // 滑鼠懸停高亮
-    if (!isTouch) {
-      state.hoveredItem = hitTest(world.x, world.y, false);
-      if (state.spacePressed) canvas.style.cursor = 'grab';
-      else if (state.hoveredItem && state.hoveredItem.kind === 'pin') canvas.style.cursor = 'crosshair';
-      else if (state.hoveredItem && state.hoveredItem.kind === 'component') canvas.style.cursor = 'pointer';
-      else canvas.style.cursor = 'default';
-    }
+}
+function push(){
+  save();
+  if(!node)return;
+  node.port.postMessage({
+    master:db2lin(S.master),tonesOn:S.tonesOn,
+    tones:S.tones.map(t=>({on:t.on,f:t.f,th:t.ph*Math.PI/180,g:db2lin(t.g),bw:t.bw,track:t.track})),
+    mask:{on:S.maskOn,amt:db2lin(S.amt),floor:db2lin(S.floor),tilt:S.tilt,rel:S.rel}
   });
-
-  function handlePointerEnd(e) {
-    state.activePointers.delete(e.pointerId);
-    if (state.activePointers.size < 2) {
-      state.pinch = null;
-    }
-
-    if (state.panning && state.panning.pointerId === e.pointerId) {
-      if (!state.panning.moved && state.panning.isBlankTap) {
-        state.selectedId = null;
-        state.selectedKind = null;
-        renderInspector();
-      }
-      state.panning = null;
-      canvas.style.cursor = state.spacePressed ? 'grab' : 'default';
-    }
-
-    if (state.draggingComp && state.draggingComp.pointerId === e.pointerId) {
-      // 若點擊開關中心且沒有拖曳移動，則切換開關
-      if (!state.draggingComp.moved && state.draggingComp.hitCenter) {
-        const comp = state.components.find(c => c.id === state.draggingComp.id);
-        if (comp && comp.type === 'switch') {
-          pushHistory();
-          comp.props.closed = !comp.props.closed;
-          renderInspector();
-          solveAndSync();
-        }
-      }
-      state.draggingComp = null;
-    }
-  }
-
-  canvas.addEventListener('pointerup', handlePointerEnd);
-  canvas.addEventListener('pointercancel', handlePointerEnd);
-
-  canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    if (state.wiring) state.wiring = null;
+}
+function bind(id,obj,key,num){
+  const el=$(id),ev=(el.type==='range')?'input':'change';
+  el.addEventListener(ev,()=>{
+    let v=el.type==='checkbox'?el.checked:(num?parseFloat(el.value):el.value);
+    if(num&&!isFinite(v))return;
+    if(key==='f')v=Math.min(400,Math.max(25,v));
+    obj[key]=v;paint();push();
   });
+}
+bind('master',S,'master',1);bind('tonesOn',S,'tonesOn');bind('maskOn',S,'maskOn');
+bind('amt',S,'amt',1);bind('floor',S,'floor',1);bind('tilt',S,'tilt',1);bind('rel',S,'rel',1);
+S.tones.forEach((t,k)=>{bind(`t${k}on`,t,'on');bind(`t${k}f`,t,'f',1);bind(`t${k}ph`,t,'ph',1);
+  bind(`t${k}g`,t,'g',1);bind(`t${k}bw`,t,'bw',1);bind(`t${k}tr`,t,'track');});
+paint();
 
-  // 滾輪縮放（桌機滑鼠 / 外接觸控板）
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    const newZoom = Math.max(0.35, Math.min(2.5, state.view.zoom * factor));
-    state.view.x = sx - (sx - state.view.x) * (newZoom / state.view.zoom);
-    state.view.y = sy - (sy - state.view.y) * (newZoom / state.view.zoom);
-    state.view.zoom = newZoom;
-    zoomBadge.textContent = `${Math.round(newZoom * 100)}%`;
-  }, { passive: false });
+function msg(text,kind){const m=$('msg');m.className='msg'+(text?' '+(kind||'warn'):'');m.textContent=text||'';}
 
-  // 鍵盤快捷鍵
-  window.addEventListener('keydown', (e) => {
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
-    if (e.code === 'Space') {
-      state.spacePressed = true;
-      canvas.style.cursor = 'grab';
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      deleteSelected();
-    } else if (e.key === 'r' || e.key === 'R') {
-      rotateSelected();
-    } else if (e.key === 'Escape') {
-      state.wiring = null;
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      if (e.shiftKey) redo();
-      else undo();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-      e.preventDefault();
-      redo();
-    }
-  });
+const muteBtn=$('mute');
+const setMute=v=>{if(node)node.port.postMessage({mute:v});};
+['pointerdown'].forEach(e=>muteBtn.addEventListener(e,ev=>{ev.preventDefault();setMute(true);}));
+['pointerup','pointerleave','pointercancel'].forEach(e=>muteBtn.addEventListener(e,()=>setMute(false)));
 
-  window.addEventListener('keyup', (e) => {
-    if (e.code === 'Space') {
-      state.spacePressed = false;
-      canvas.style.cursor = 'default';
-    }
-  });
-
-  // --- 左側元件庫（同時支援桌機滑鼠拖放與 iPad 觸控拖放） ---
-  function initPalette() {
-    const list = document.getElementById('palette-list');
-    list.innerHTML = COMPONENT_DEFS.map(def => `
-      <div class="palette-item" draggable="true" data-type="${def.type}">
-        <div class="palette-icon">${getPaletteSVG(def.type)}</div>
-        <div class="palette-info">
-          <span class="palette-title">${def.name}</span>
-          <span class="palette-desc">${def.desc}</span>
-        </div>
-      </div>
-    `).join('');
-
-    list.querySelectorAll('.palette-item').forEach(el => {
-      const type = el.dataset.type;
-
-      // 桌機 HTML5 Drag-and-Drop
-      el.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', type);
-      });
-
-      // 觸控與點擊統一處理
-      let touchDrag = null;
-
-      el.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'mouse') return; // 滑鼠交給原生 dragstart / click
-        e.preventDefault();
-        try { el.setPointerCapture(e.pointerId); } catch (_) {}
-        touchDrag = {
-          pointerId: e.pointerId,
-          startX: e.clientX,
-          startY: e.clientY,
-          dragging: false,
-          ghost: null
-        };
-      });
-
-      el.addEventListener('pointermove', (e) => {
-        if (!touchDrag || touchDrag.pointerId !== e.pointerId) return;
-        const dist = Math.hypot(e.clientX - touchDrag.startX, e.clientY - touchDrag.startY);
-        if (!touchDrag.dragging && dist > 8) {
-          touchDrag.dragging = true;
-          const def = getCompDef(type);
-          const ghost = document.createElement('div');
-          ghost.className = 'touch-drag-ghost';
-          ghost.innerHTML = `${getPaletteSVG(type)}<span>${def.short}</span>`;
-          document.body.appendChild(ghost);
-          touchDrag.ghost = ghost;
-        }
-        if (touchDrag.ghost) {
-          touchDrag.ghost.style.left = `${e.clientX}px`;
-          touchDrag.ghost.style.top = `${e.clientY}px`;
-        }
-      });
-
-      const endTouchDrag = (e) => {
-        if (!touchDrag || touchDrag.pointerId !== e.pointerId) return;
-        if (touchDrag.ghost) {
-          touchDrag.ghost.remove();
-          const rect = canvas.getBoundingClientRect();
-          if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-            pushHistory();
-            const c = createComponent(type, world.x, world.y);
-            state.selectedId = c.id;
-            state.selectedKind = 'component';
-            renderInspector();
-            solveAndSync();
-          }
-        } else {
-          // 輕點元件庫項目，直接建立於畫布中央
-          const rect = canvas.getBoundingClientRect();
-          const center = screenToWorld(rect.width / 2, rect.height / 2);
-          pushHistory();
-          const c = createComponent(type, center.x, center.y);
-          state.selectedId = c.id;
-          state.selectedKind = 'component';
-          renderInspector();
-          solveAndSync();
-        }
-        touchDrag = null;
-      };
-
-      el.addEventListener('pointerup', endTouchDrag);
-      el.addEventListener('pointercancel', endTouchDrag);
-
-      // 桌機點擊建立
-      el.addEventListener('click', () => {
-        const rect = canvas.getBoundingClientRect();
-        const center = screenToWorld(rect.width / 2, rect.height / 2);
-        pushHistory();
-        const c = createComponent(type, center.x, center.y);
-        state.selectedId = c.id;
-        state.selectedKind = 'component';
-        renderInspector();
-        solveAndSync();
-      });
-    });
-
-    canvas.addEventListener('dragover', (e) => e.preventDefault());
-    canvas.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const type = e.dataTransfer.getData('text/plain');
-      if (!type) return;
-      const rect = canvas.getBoundingClientRect();
-      const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-      pushHistory();
-      const c = createComponent(type, world.x, world.y);
-      state.selectedId = c.id;
-      state.selectedKind = 'component';
-      renderInspector();
-      solveAndSync();
-    });
+/* ---------- 音訊 ---------- */
+async function start(){
+  msg('');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg('此瀏覽器無法使用麥克風。請用 https 網址（例如 GitHub Pages）在 Safari 開啟。','bad');return;}
+  try{if(navigator.audioSession)navigator.audioSession.type='play-and-record';}catch(e){}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1},video:false});
+  }catch(e){msg('無法取得麥克風權限：'+e.message,'bad');return;}
+  const AC=window.AudioContext||window.webkitAudioContext;
+  ctx=new AC({latencyHint:'interactive'});
+  if(!ctx.audioWorklet){msg('此瀏覽器不支援 AudioWorklet，請更新系統。','bad');stop();return;}
+  const code=$('wk').textContent;
+  try{
+    const url=URL.createObjectURL(new Blob([code],{type:'application/javascript'}));
+    await ctx.audioWorklet.addModule(url);
+  }catch(e){
+    try{await ctx.audioWorklet.addModule('data:application/javascript;charset=utf-8,'+encodeURIComponent(code));}
+    catch(e2){msg('音訊處理模組載入失敗：'+e2.message,'bad');stop();return;}
   }
+  await ctx.resume();
+  const src=ctx.createMediaStreamSource(stream);
+  node=new AudioWorkletNode(ctx,'anc-proc',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2]});
+  analyser=ctx.createAnalyser();analyser.fftSize=32768;analyser.smoothingTimeConstant=0.6;
+  fbuf=new Float32Array(analyser.frequencyBinCount);
+  src.connect(node);src.connect(analyser);node.connect(ctx.destination);
+  node.port.onmessage=e=>{live=e.data.f.map((f,k)=>({f,a:e.data.a[k]}));
+    const pk=e.data.pk,d=pk>1e-6?20*Math.log10(pk):-120;
+    $('lvl').style.width=Math.max(0,Math.min(100,(d+60)/60*100))+'%';
+    $('lvl').style.background=d>-6?'var(--bad)':d>-18?'var(--warn)':'var(--acc)';
+    $('lvlO').textContent=d<-100?'–':d.toFixed(0)+' dB';
+    S.tones.forEach((t,k)=>{$(`t${k}s`).textContent=t.on?live[k].f.toFixed(2)+' Hz｜'+(live[k].a>1e-7?(20*Math.log10(live[k].a)).toFixed(0)+' dB':'無訊號'):'–';});
+  };
+  push();
+  const lat=((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000;
+  const warn=[];
+  if(ctx.sampleRate<44100)warn.push('取樣率只有 '+ctx.sampleRate+' Hz，看起來走的是藍牙通話模式，請改用耳機線。');
+  if(lat>80)warn.push('輸出延遲約 '+lat.toFixed(0)+' ms（可能是藍牙），反相抵銷效果會很差，請改用耳機線。');
+  if(warn.length)msg(warn.join(' '));
+  try{if(navigator.wakeLock)wake=await navigator.wakeLock.request('screen');}catch(e){}
+  $('start').textContent='停止';$('start').classList.add('on');
+  draw();
+}
+function stop(){
+  cancelAnimationFrame(raf);
+  try{if(stream)stream.getTracks().forEach(t=>t.stop());}catch(e){}
+  try{if(ctx)ctx.close();}catch(e){}
+  try{if(wake)wake.release();}catch(e){}
+  ctx=node=stream=analyser=wake=null;
+  $('start').textContent='開始';$('start').classList.remove('on');
+  $('lvl').style.width='0';$('lvlO').textContent='–';
+}
+$('start').addEventListener('click',()=>{ctx?stop():start();});
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'&&ctx){try{await ctx.resume();if(navigator.wakeLock)wake=await navigator.wakeLock.request('screen');}catch(e){}}
+});
 
-  function getPaletteSVG(type) {
-    const s = 'stroke="#e6edf3" stroke-width="2" fill="none"';
-    switch (type) {
-      case 'dc_source': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-15 0 H-4 M4 0 H15 M4 -8 V8" ${s}/><path d="M-4 -5 V5" stroke="#e6edf3" stroke-width="3.5"/></svg>`;
-      case 'ground': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M0 -10 V0 M-10 0 H10 M-6 4 H6 M-3 8 H3" ${s}/></svg>`;
-      case 'resistor': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H-10 M10 0 H16" ${s}/><rect x="-10" y="-5" width="20" height="10" rx="2" fill="#d2b48c"/></svg>`;
-      case 'capacitor': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H-3 M3 0 H16 M-3 -8 V8 M3 -8 V8" ${s}/></svg>`;
-      case 'led': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H16 M6 -7 V7" ${s}/><polygon points="-6,-7 6,0 -6,7" fill="#ef4444" stroke="#e6edf3" stroke-width="1.5"/></svg>`;
-      case 'switch': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><path d="M-16 0 H-7 M7 0 H16" ${s}/><path d="M-7 0 L7 -7" stroke="#2ea043" stroke-width="2"/></svg>`;
-      case 'voltmeter': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><circle cx="0" cy="0" r="9" stroke="#38bdf8" stroke-width="2" fill="none"/><text x="0" y="3.5" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">V</text></svg>`;
-      case 'ammeter': return `<svg width="34" height="24" viewBox="-17 -12 34 24"><circle cx="0" cy="0" r="9" stroke="#a855f7" stroke-width="2" fill="none"/><text x="0" y="3.5" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">A</text></svg>`;
-      default: return '';
-    }
+/* ---------- 頻譜 ---------- */
+const cv=$('cv'),g2=cv.getContext('2d');
+const F0=20,F1=400,D0=-120,D1=-30;
+const fx=f=>Math.log(f/F0)/Math.log(F1/F0)*cv.width;
+function draw(){
+  raf=requestAnimationFrame(draw);
+  if(!analyser)return;
+  analyser.getFloatFrequencyData(fbuf);
+  const W=cv.width,H=cv.height,hz=ctx.sampleRate/analyser.fftSize;
+  g2.clearRect(0,0,W,H);
+  g2.strokeStyle='#22303a';g2.fillStyle='#6f7f8b';g2.font='20px sans-serif';g2.lineWidth=1;
+  [30,50,60,100,120,200,300].forEach(f=>{const x=fx(f);g2.beginPath();g2.moveTo(x,0);g2.lineTo(x,H);g2.stroke();g2.fillText(f,x+3,H-6);});
+  g2.strokeStyle='#3ecf9a';g2.lineWidth=2;g2.beginPath();
+  let first=true;
+  for(let i=Math.floor(F0/hz);i<=Math.ceil(F1/hz);i++){
+    const x=fx(i*hz),y=H-(fbuf[i]-D0)/(D1-D0)*H;
+    if(first){g2.moveTo(x,y);first=false;}else g2.lineTo(x,y);
   }
+  g2.stroke();
+  S.tones.forEach((t,k)=>{if(!t.on)return;const f=live[k]?live[k].f:t.f,x=fx(f);
+    g2.strokeStyle='#f0b24a';g2.lineWidth=2;g2.beginPath();g2.moveTo(x,0);g2.lineTo(x,H-28);g2.stroke();
+    g2.fillStyle='#f0b24a';g2.fillText(k+1,x+4,22);});
+}
 
-  // --- 預設經典教學範例電路 ---
-  function loadPreset(name) {
-    state.components = [];
-    state.wires = [];
-    state.nextId = 1;
-    state.selectedId = null;
-    state.selectedKind = null;
-    state.historyStack = [];
-    state.redoStack = [];
-    state.simTime = 0;
-    state.shortCircuit = false;
-    state.scope.history = [];
-
-    const rect = canvas.getBoundingClientRect();
-    state.view = { x: rect.width / 2, y: rect.height / 2, zoom: 1.0 };
-    zoomBadge.textContent = '100%';
-
-    const addWire = (...pts) => {
-      state.wires.push({ id: state.nextId++, points: pts.map(p => ({ x: p[0], y: p[1] })) });
-    };
-
-    if (name === 'led_ohm') {
-      createComponent('dc_source', -160, 0, { voltage: 9 }, 270);
-      createComponent('switch', -60, -100, { closed: true }, 0);
-      createComponent('resistor', 60, -100, { resistance: 330 }, 0);
-      const led = createComponent('led', 160, 0, { vf: 2.0, maxCurrent: 0.03 }, 90);
-      createComponent('ammeter', 0, 100, {}, 180);
-      createComponent('ground', -160, 120, {}, 0);
-
-      addWire([-160, -40], [-160, -100], [-100, -100]);
-      addWire([-20, -100], [20, -100]);
-      addWire([100, -100], [160, -100], [160, -40]);
-      addWire([160, 40], [160, 100], [40, 100]);
-      addWire([-40, 100], [-160, 100]);
-      addWire([-160, 40], [-160, 100]);
-      setScopeTarget(`pin:${led.id}:a`, 'LED 陽極電壓');
-    } else if (name === 'voltage_divider') {
-      createComponent('dc_source', -140, 0, { voltage: 12 }, 270);
-      createComponent('resistor', 0, -60, { resistance: 1000 }, 90);
-      const r2 = createComponent('resistor', 0, 60, { resistance: 2000 }, 90);
-      createComponent('voltmeter', 120, 60, {}, 90);
-      createComponent('ground', -140, 120, {}, 0);
-
-      addWire([-140, -40], [-140, -100], [0, -100]);
-      addWire([0, -20], [0, 20]);
-      addWire([0, 20], [120, 20]);
-      addWire([0, 100], [-140, 100]);
-      addWire([120, 100], [0, 100]);
-      addWire([-140, 40], [-140, 100]);
-      setScopeTarget(`pin:${r2.id}:a`, '分壓輸出點 (R1-R2 接點)');
-    } else if (name === 'rc_transient') {
-      createComponent('dc_source', -180, 0, { voltage: 10 }, 270);
-      createComponent('switch', -100, -100, { closed: true }, 0);
-      createComponent('resistor', 0, -100, { resistance: 1000 }, 0);
-      const cap = createComponent('capacitor', 100, 0, { capacitance: 0.001 }, 90);
-      createComponent('resistor', 200, 0, { resistance: 2000 }, 90);
-      createComponent('voltmeter', 280, 0, {}, 90);
-      createComponent('ground', -180, 120, {}, 0);
-
-      addWire([-180, -40], [-180, -100], [-140, -100]);
-      addWire([-60, -100], [-40, -100]);
-      addWire([40, -100], [100, -100], [100, -40]);
-      addWire([100, -100], [200, -100], [200, -40]);
-      addWire([200, -100], [280, -100], [280, -40]);
-      addWire([100, 40], [100, 100], [-180, 100]);
-      addWire([200, 40], [200, 100], [100, 100]);
-      addWire([280, 40], [280, 100], [200, 100]);
-      addWire([-180, 40], [-180, 100]);
-      setScopeTarget(`pin:${cap.id}:a`, '電容正極電壓 Vc(t)');
-    }
-
-    state.running = true;
-    updateRunButton();
-    updateHistoryButtons();
-    renderInspector();
-    solveAndSync();
+/* ---------- 自動偵測 ---------- */
+$('detect').addEventListener('click',async()=>{
+  if(!analyser){msg('請先按「開始」。');return;}
+  const btn=$('detect');btn.disabled=true;btn.textContent='偵測中…（約 3 秒）';
+  const nbin=analyser.frequencyBinCount,acc=new Float64Array(nbin),tmp=new Float32Array(nbin);let n=0;
+  for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,150));if(!analyser)break;
+    analyser.getFloatFrequencyData(tmp);for(let j=0;j<nbin;j++)acc[j]+=tmp[j];n++;}
+  btn.disabled=false;btn.textContent='自動偵測嗡聲頻率';
+  if(!n||!ctx)return;
+  const hz=ctx.sampleRate/analyser.fftSize,lo=Math.ceil(35/hz),hi=Math.floor(250/hz),cand=[];
+  for(let i=lo;i<=hi;i++){
+    const v=acc[i]/n;let mx=true;
+    for(let d=-3;d<=3;d++)if(d&&acc[i+d]/n>v){mx=false;break;}
+    if(!mx)continue;
+    const w=Math.round(15/hz),nb=[];
+    for(let j=i-w;j<=i+w;j++)if(j>0&&j<nbin&&Math.abs(j-i)>3)nb.push(acc[j]/n);
+    nb.sort((a,b)=>a-b);const med=nb[nb.length>>1];
+    if(v-med<8)continue;
+    const a=acc[i-1]/n,c=acc[i+1]/n,off=0.5*(a-c)/(a-2*v+c);
+    cand.push({f:(i+(isFinite(off)?off:0))*hz,v,prom:v-med});
   }
-
-  // --- 工具列按鈕綁定 ---
-  btnRunPause.onclick = () => {
-    if (state.shortCircuit) return;
-    state.running = !state.running;
-    updateRunButton();
-    updateUIReadouts();
-  };
-
-  document.getElementById('btn-reset-sim').onclick = resetTransientState;
-  btnUndo.onclick = undo;
-  btnRedo.onclick = redo;
-  document.getElementById('btn-rotate').onclick = rotateSelected;
-  document.getElementById('btn-delete').onclick = deleteSelected;
-
-  document.getElementById('btn-clear').onclick = () => {
-    if (state.components.length === 0 && state.wires.length === 0) return;
-    pushHistory();
-    state.components = [];
-    state.wires = [];
-    state.selectedId = null;
-    state.selectedKind = null;
-    state.shortCircuit = false;
-    state.scope.history = [];
-    renderInspector();
-    solveAndSync();
-  };
-
-  document.getElementById('btn-zoom-reset').onclick = () => {
-    const rect = canvas.getBoundingClientRect();
-    state.view = { x: rect.width / 2, y: rect.height / 2, zoom: 1.0 };
-    zoomBadge.textContent = '100%';
-  };
-
-  document.getElementById('btn-scope-clear').onclick = () => {
-    state.scope.history = [];
-  };
-
-  document.getElementById('preset-select').onchange = (e) => {
-    if (e.target.value) {
-      loadPreset(e.target.value);
-      e.target.value = '';
-    }
-  };
-
-  // --- 初始化 ---
-  window.addEventListener('resize', resizeCanvases);
-  initPalette();
-  resizeCanvases();
-  loadPreset('led_ohm');
-  requestAnimationFrame(mainLoop);
-
-})();
+  cand.sort((a,b)=>b.v-a.v);
+  const pick=[];
+  for(const c of cand){if(pick.every(p=>Math.abs(p.f-c.f)>=5))pick.push(c);if(pick.length===3)break;}
+  if(!pick.length){msg('沒有找到明顯的穩定嗡聲（頻譜上沒有尖峰）。這種噪音無法用反相抵銷，請改用自適應遮蔽。');return;}
+  pick.sort((a,b)=>a.f-b.f);
+  S.tones.forEach((t,k)=>{if(pick[k]){t.on=true;t.f=Math.round(pick[k].f*10)/10;}else t.on=false;});
+  msg('找到 '+pick.length+' 個嗡聲：'+pick.map(p=>p.f.toFixed(1)+' Hz').join('、')+'。接著逐軌調相位與強度。');
+  paint();push();
+});
 </script>
 </body>
 </html>
